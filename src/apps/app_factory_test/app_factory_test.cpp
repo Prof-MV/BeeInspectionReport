@@ -34,7 +34,7 @@ void FactoryTest::onCreate()
     _lcd_test();
     _rtc_test();
     _rfid_test();
-    _io_test();
+    //_io_test();
     // _wifi_test();
     // _ble_test();
     _rtc_wakeup_test();

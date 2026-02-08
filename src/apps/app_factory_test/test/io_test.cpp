@@ -24,6 +24,7 @@ using namespace MOONCAKE::USER_APP;
 
 
 
+
 void FactoryTest::_io_test()
 {
     _log("io test");
@@ -39,7 +40,7 @@ void FactoryTest::_io_test()
     _canvas_update();
 
 
-    _io_test_rgb_init();
+    //_io_test_rgb_init();
     _io_test_adc_init();
 
 

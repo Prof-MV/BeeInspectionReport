@@ -73,8 +73,10 @@ void Launcher::_icon_list_init()
     /* Icon position */
     int a = 120;
     int b = 120;
-    int r = 190 / 2;
-    int n = 10;
+    int r = 190 / 2 ;
+    int n = 10; // Number of icons
+
+    /* Set icon position */
     int x;
     int y;
     for (int i = 0; i < icon_list.size(); i++)

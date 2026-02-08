@@ -14,6 +14,8 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+// #include <led_strip.h>
+// Update the path below if led_strip.h is located elsewhere in your project or libraries
 #include <led_strip.h>
 
 
