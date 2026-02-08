@@ -9,11 +9,4 @@
  * 
  */
 #pragma once
-#include "icon_ble.h"
-#include "icon_brigntness.h"
-#include "icon_lcd.h"
-#include "icon_more.h"
-#include "icon_rfid.h"
-#include "icon_rtc.h"
-#include "icon_temp.h"
-#include "icon_wifi.h"
+#include "icon_beehive.h"

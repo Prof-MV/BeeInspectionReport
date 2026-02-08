@@ -26,7 +26,7 @@
 #define ICON_TAG_UP_OFFSET          -24
 #define ICON_TAG_DOWN_OFFSET        0
 
-#define ICON_NUM                    8
+#define ICON_NUM                    1
 
 
 /* Strucut to hold icon value */
@@ -44,37 +44,15 @@ struct Icon_t
 static std::array<Icon_t, ICON_NUM> icon_list;
 /* Icon color */
 static std::array<uint32_t, ICON_NUM> icon_color_list = {
-    0xFD5C4C,
-    0x577EFF,
-    0x03A964,
-    0x1AA198,
-    0xEB8429,
-    0x04A279,
-    0x008CD6,
-    0x5D7BA2
-    // 0x000000
+    0xFFA500  // Beehive - amber/orange
 };
 /* Icon tag */
 static std::array<std::string, ICON_NUM * 2> icon_tag_list = {
-    "LCD", "TEST",
-    "RTC", "TIME",
-    "RFID", "TEST",
-    "BRIGHTNESS", "SET",
-    "WIFI", "SCAN",
-    "BLE", "SERVER",
-    "TEMP CTRL", "DEMO",
-    "MORE", ""
+    "BEEHIVE", "INSPECT"
 };
 /* Icon pic */
 static std::array<const uint16_t*, ICON_NUM> icon_pic_list = {
-    image_data_icon_lcd,
-    image_data_icon_rtc,
-    image_data_icon_rfid,
-    image_data_icon_brigntness,
-    image_data_icon_wifi,
-    image_data_icon_ble,
-    image_data_icon_temp,
-    image_data_icon_more
+    image_data_icon_beehive
 };
 /* Sprite to render icon with transparency */
 static LGFX_Sprite icon_sprite_list[ICON_NUM];

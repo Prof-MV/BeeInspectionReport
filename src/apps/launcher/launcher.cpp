@@ -42,7 +42,7 @@ void Launcher::_menu_init()
     int a = 120;
     int b = 120;
     int r = 60;
-    int n = 10;
+    int n = 1;
     int x;
     int y;
     for (int i = 0; i < n; i++)
@@ -74,7 +74,7 @@ void Launcher::_icon_list_init()
     int a = 120;
     int b = 120;
     int r = 190 / 2 ;
-    int n = 10; // Number of icons
+    int n = 1; // Number of icons
 
     /* Set icon position */
     int x;
@@ -187,12 +187,8 @@ void Launcher::_app_open_callback(uint8_t selectedNum)
     }
 
 
-    /* Special color for app more menu */
-    uint32_t theme_color = 0;
-    if (selectedNum != 7)
-        theme_color = icon_list[selectedNum].color;
-    else
-        theme_color = 0;
+    /* Get theme color */
+    uint32_t theme_color = icon_list[selectedNum].color;
 
 
     /* Play app open anim */
@@ -275,28 +271,7 @@ void Launcher::_app_open_callback(uint8_t selectedNum)
     switch (selectedNum)
     {
         case 0:
-            app_ptr = new MOONCAKE::USER_APP::LCD_Test;
-            break;
-        case 1:
-            app_ptr = new MOONCAKE::USER_APP::RTC_Test;
-            break;
-        case 2:
-            app_ptr = new MOONCAKE::USER_APP::RFID_Test;
-            break;
-        case 3:
-            app_ptr = new MOONCAKE::USER_APP::Set_Brightness;
-            break;
-        case 4:
-            app_ptr = new MOONCAKE::USER_APP::WiFi_Scan;
-            break;
-        case 5:
-            app_ptr = new MOONCAKE::USER_APP::BLE_Server;
-            break;
-        case 6:
-            app_ptr = new MOONCAKE::USER_APP::VideoShit;
-            break;
-        case 7:
-            app_ptr = new MOONCAKE::USER_APP::MoreMenu;
+            app_ptr = new MOONCAKE::USER_APP::BeehiveInspection;
             break;
         default:
             break;

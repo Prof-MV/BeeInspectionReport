@@ -8,7 +8,10 @@
       "Bash(git credential-manager:*)",
       "Bash(start \"control\" /name Microsoft.CredentialManager)",
       "Bash(rundll32.exe keymgr.dll,KRShowKeyMgr)",
-      "Bash(git remote set-url:*)"
+      "Bash(git remote set-url:*)",
+      "Bash(where:*)",
+      "Bash(cmd /c \"C:\\\\Users\\\\mvolk\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe run\":*)",
+      "Bash(C:\\\\\\\\Users\\\\\\\\mvolk\\\\\\\\.platformio\\\\\\\\penv\\\\\\\\Scripts\\\\\\\\pio.exe run:*)"
     ]
   }
 }
