@@ -16,6 +16,7 @@
 #include "../utilities/gui_base/gui_base.h"
 
 #include "../app_beehive_inspection/app_beehive_inspection.h"
+#include "../app_yard_management/app_yard_management.h"
 
 
 

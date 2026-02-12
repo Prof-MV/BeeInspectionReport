@@ -11,7 +11,10 @@
       "Bash(git remote set-url:*)",
       "Bash(where:*)",
       "Bash(cmd /c \"C:\\\\Users\\\\mvolk\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe run\":*)",
-      "Bash(C:\\\\\\\\Users\\\\\\\\mvolk\\\\\\\\.platformio\\\\\\\\penv\\\\\\\\Scripts\\\\\\\\pio.exe run:*)"
+      "Bash(C:\\\\\\\\Users\\\\\\\\mvolk\\\\\\\\.platformio\\\\\\\\penv\\\\\\\\Scripts\\\\\\\\pio.exe run:*)",
+      "Bash(~/.platformio/penv/Scripts/pio.exe run:*)",
+      "Bash(\"%USERPROFILE%\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run)",
+      "Bash(cmd.exe /c \"cd /d c:\\\\Users\\\\mvolk\\\\Documents\\\\PlatformIO\\\\Projects\\\\M5Dial-BeeInspectionReport && C:\\\\Users\\\\mvolk\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe run\":*)"
     ]
   }
 }

@@ -42,7 +42,7 @@ void Launcher::_menu_init()
     int a = 120;
     int b = 120;
     int r = 60;
-    int n = 1;
+    int n = ICON_NUM;  // Number of icons
     int x;
     int y;
     for (int i = 0; i < n; i++)
@@ -74,7 +74,7 @@ void Launcher::_icon_list_init()
     int a = 120;
     int b = 120;
     int r = 190 / 2 ;
-    int n = 1; // Number of icons
+    int n = ICON_NUM; // Number of icons
 
     /* Set icon position */
     int x;
@@ -272,6 +272,9 @@ void Launcher::_app_open_callback(uint8_t selectedNum)
     {
         case 0:
             app_ptr = new MOONCAKE::USER_APP::BeehiveInspection;
+            break;
+        case 1:
+            app_ptr = new MOONCAKE::USER_APP::YardManagement;
             break;
         default:
             break;

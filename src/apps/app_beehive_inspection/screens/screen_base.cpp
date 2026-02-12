@@ -27,16 +27,19 @@ void ScreenBase::drawHeader(const char* title) {
     _canvas->setTextSize(1);
     _canvas->setFont(&fonts::FreeSansBold12pt7b);
     _canvas->setTextDatum(textdatum_t::top_center);
-    _canvas->drawString(title, 120, 20);
+    // Position header within visible circular area (starts around y=30 for 226px visible diameter)
+    _canvas->drawString(title, DISPLAY_CENTER_X, CONTENT_TOP);
 }
 
 void ScreenBase::drawProgressIndicator() {
-    // Draw progress dots at bottom
-    int startX = 120 - (SCREEN_COUNT * 8) / 2;
-    int y = 220;
+    // Draw progress dots at bottom - positioned within visible circular area
+    // At y=200, the visible width is narrower due to circular display
+    int dotSpacing = 10;
+    int startX = DISPLAY_CENTER_X - (SCREEN_COUNT * dotSpacing) / 2;
+    int y = CONTENT_BOTTOM - 5;  // Stay within visible area
 
     for (int i = 0; i < SCREEN_COUNT; i++) {
-        int x = startX + i * 12;
+        int x = startX + i * dotSpacing;
         if (i == _screenIndex) {
             _canvas->fillCircle(x, y, 4, COLOR_SELECTED);
         } else if (i < _screenIndex) {
@@ -46,26 +49,27 @@ void ScreenBase::drawProgressIndicator() {
         }
     }
 
-    // Draw screen number
+    // Draw screen number above dots
     char numStr[8];
     snprintf(numStr, sizeof(numStr), "%d/%d", _screenIndex + 1, SCREEN_COUNT);
     _canvas->setFont(&fonts::FreeSans9pt7b);
     _canvas->setTextColor(COLOR_TEXT_SECONDARY);
     _canvas->setTextDatum(textdatum_t::bottom_center);
-    _canvas->drawString(numStr, 120, 210);
+    _canvas->drawString(numStr, DISPLAY_CENTER_X, y - 10);
 }
 
 void ScreenBase::drawLargeValue(const char* value, int y) {
     _canvas->setTextColor(COLOR_TEXT_PRIMARY);
     _canvas->setFont(&fonts::FreeSansBold18pt7b);
     _canvas->setTextDatum(textdatum_t::middle_center);
-    _canvas->drawString(value, 120, y);
+    _canvas->drawString(value, DISPLAY_CENTER_X, y);
 }
 
 void ScreenBase::drawOption(const char* text, int y, bool selected, bool checked) {
-    int boxWidth = 180;
+    // Use safe area width (150px) for option boxes to stay within circular display
+    int boxWidth = MAX_CONTENT_WIDTH;
     int boxHeight = 36;
-    int boxX = (240 - boxWidth) / 2;
+    int boxX = (DISPLAY_WIDTH - boxWidth) / 2;
 
     if (selected) {
         _canvas->fillRoundRect(boxX, y - boxHeight/2, boxWidth, boxHeight, 8, _themeColor);
@@ -81,9 +85,9 @@ void ScreenBase::drawOption(const char* text, int y, bool selected, bool checked
     if (checked) {
         char buf[64];
         snprintf(buf, sizeof(buf), "[x] %s", text);
-        _canvas->drawString(buf, 120, y);
+        _canvas->drawString(buf, DISPLAY_CENTER_X, y);
     } else {
-        _canvas->drawString(text, 120, y);
+        _canvas->drawString(text, DISPLAY_CENTER_X, y);
     }
 }
 

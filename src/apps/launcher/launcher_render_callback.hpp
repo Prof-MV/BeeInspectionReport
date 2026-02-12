@@ -26,7 +26,7 @@
 #define ICON_TAG_UP_OFFSET          -24
 #define ICON_TAG_DOWN_OFFSET        0
 
-#define ICON_NUM                    1
+#define ICON_NUM                    2
 
 
 /* Strucut to hold icon value */
@@ -44,15 +44,18 @@ struct Icon_t
 static std::array<Icon_t, ICON_NUM> icon_list;
 /* Icon color */
 static std::array<uint32_t, ICON_NUM> icon_color_list = {
-    0xFFA500  // Beehive - amber/orange
+    0xFFA500,  // Beehive Inspection - amber/orange
+    0x4CAF50   // Yard Management - green
 };
 /* Icon tag */
 static std::array<std::string, ICON_NUM * 2> icon_tag_list = {
-    "BEEHIVE", "INSPECT"
+    "BEEHIVE", "INSPECT",
+    "YARD", "MGMT"
 };
 /* Icon pic */
 static std::array<const uint16_t*, ICON_NUM> icon_pic_list = {
-    image_data_icon_beehive
+    image_data_icon_beehive,
+    image_data_icon_beehive  // Reuse beehive icon for now
 };
 /* Sprite to render icon with transparency */
 static LGFX_Sprite icon_sprite_list[ICON_NUM];

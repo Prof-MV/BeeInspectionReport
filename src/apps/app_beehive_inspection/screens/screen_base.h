@@ -8,6 +8,7 @@
 #include "../inspection_data.h"
 #include "../../../hal/hal.h"
 #include <LovyanGFX.hpp>
+#include <cmath>
 
 namespace BEEHIVE_INSPECTION {
 
@@ -20,6 +21,32 @@ constexpr int SCREEN_TEMPERAMENT = 3;
 constexpr int SCREEN_BROOD_SIZE = 4;
 constexpr int SCREEN_TREATMENT = 5;
 constexpr int SCREEN_PESTS = 6;
+
+// Circular display constraints (240x240 square, but circular visible area)
+constexpr int DISPLAY_WIDTH = 240;
+constexpr int DISPLAY_HEIGHT = 240;
+constexpr int DISPLAY_CENTER_X = 120;
+constexpr int DISPLAY_CENTER_Y = 120;
+
+// Effective visible circular area: ~226px diameter (94% of 240px)
+constexpr int VISIBLE_DIAMETER = 226;
+constexpr int VISIBLE_RADIUS = 113;
+
+// Safe area for critical content: 150px diameter center
+constexpr int SAFE_DIAMETER = 150;
+constexpr int SAFE_RADIUS = 75;
+
+// Edge buffer: minimum 10px from edge for visual comfort
+constexpr int EDGE_BUFFER = 10;
+
+// Usable content area (accounting for circular display)
+constexpr int CONTENT_TOP = 30;      // Start content below header
+constexpr int CONTENT_BOTTOM = 200;  // End content above progress indicator
+constexpr int CONTENT_LEFT = 30;     // Left edge with buffer
+constexpr int CONTENT_RIGHT = 210;   // Right edge with buffer
+
+// Maximum content width within safe area
+constexpr int MAX_CONTENT_WIDTH = SAFE_DIAMETER;
 
 // Colors (RGB565)
 constexpr uint16_t COLOR_BACKGROUND = 0x1082;     // Dark blue
@@ -72,6 +99,29 @@ public:
 
     // Set theme color
     void setThemeColor(uint32_t color) { _themeColor = color; }
+
+    // Static helper: Check if point is within visible circular area
+    static inline bool isInVisibleArea(int x, int y) {
+        int dx = x - DISPLAY_CENTER_X;
+        int dy = y - DISPLAY_CENTER_Y;
+        return (dx * dx + dy * dy) <= (VISIBLE_RADIUS * VISIBLE_RADIUS);
+    }
+
+    // Static helper: Check if point is within safe content area
+    static inline bool isInSafeArea(int x, int y) {
+        int dx = x - DISPLAY_CENTER_X;
+        int dy = y - DISPLAY_CENTER_Y;
+        return (dx * dx + dy * dy) <= (SAFE_RADIUS * SAFE_RADIUS);
+    }
+
+    // Static helper: Get maximum width at given Y position (for circular display)
+    static inline int getMaxWidthAtY(int y) {
+        int dy = y - DISPLAY_CENTER_Y;
+        if (dy < -VISIBLE_RADIUS || dy > VISIBLE_RADIUS) return 0;
+        // Calculate chord width at this y position
+        int halfWidth = (int)sqrt((float)(VISIBLE_RADIUS * VISIBLE_RADIUS - dy * dy));
+        return halfWidth * 2 - EDGE_BUFFER * 2;
+    }
 };
 
 } // namespace BEEHIVE_INSPECTION

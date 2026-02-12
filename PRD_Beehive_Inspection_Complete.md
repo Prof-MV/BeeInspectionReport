@@ -501,7 +501,7 @@ This document defines the requirements for the complete inspection flow of the B
 
 #### FR-901: Comprehensive Data Structure
 **Priority:** MUST HAVE  
-**Description:** All inspection data is stored in unified structure
+**Description:** All inspection data is stored in unified structure with space-efficient serialization
 ```cpp
 struct InspectionRecord {
     uint32_t recordId;
@@ -534,6 +534,13 @@ struct InspectionRecord {
 };
 ```
 
+**Space-Efficient Serialization:**
+All inspection data must be serializable to a compact binary format for non-volatile storage. The serialized format should:
+- Use bit-packing to minimize storage space
+- Support variable-length encoding for optional fields
+- Maintain backward compatibility for future versions
+- Target size: < 64 bytes per complete inspection record
+
 #### FR-902: Incremental Data Saving
 **Priority:** MUST HAVE  
 **Description:** Data persists as user navigates
@@ -557,6 +564,93 @@ struct InspectionRecord {
 - Timestamp from RTC8563 included
 - Hive ID linkage maintained
 - Follows format compatible with WS1850S RFID module
+
+#### FR-905: Non-Volatile Storage (NVS)
+**Priority:** MUST HAVE  
+**Description:** Persistent storage of inspection data on device flash memory
+- **Storage Method**: ESP32 NVS (Non-Volatile Storage) partition
+- **Storage Format**: Single serialized blob per inspection record
+- **Namespace**: "beehive_insp"
+- **Key Format**: "inspect_XXXX" where XXXX is record ID (zero-padded)
+- **Data Compression**: Bit-packed binary format to minimize flash wear
+- **Maximum Storage**: Support for minimum 100 inspection records
+- **Write Operations**: 
+  - Incremental writes during inspection (temporary)
+  - Final write on long-press save or inspection completion
+  - Atomic operations to prevent corruption
+- **Read Operations**:
+  - Load on app initialization
+  - Resume incomplete inspection from NVS
+  - Export all records for sync/backup
+- **Data Retention**: Persist across power cycles and firmware updates
+- **Wear Leveling**: Utilize ESP32 NVS wear leveling features
+- **Error Handling**: Validate data integrity on read with checksum/CRC
+
+**NVS Partition Requirements:**
+- Minimum partition size: 16KB (0x4000 bytes)
+- Configured in partitions.csv
+- Separate from application firmware
+- Backup mechanism for critical data
+
+**Serialization Format Example:**
+```cpp
+// Bit-packed structure for NVS storage
+// Total size: ~40-60 bytes depending on super count
+struct InspectionRecordNVS {
+    uint32_t recordId;           // 4 bytes
+    uint32_t hiveId;             // 4 bytes
+    uint32_t timestamp;          // 4 bytes (start time)
+    
+    // Bit-packed fields (total: 4 bytes)
+    uint32_t queenRight : 2;          // 0=unknown, 1=yes, 2=no
+    uint32_t supersedureCells : 3;    // 0-4 (No/Yes/1-5/5-10/10+)
+    uint32_t swarmCells : 3;          // 0-4
+    uint32_t superCount : 3;          // 0-5
+    uint32_t temperament : 3;         // 0-6
+    uint32_t broodFrames : 6;         // 0-40
+    uint32_t treatment : 3;           // 0-5
+    uint32_t pestFlags : 4;           // 4 bits for 4 pests
+    uint32_t isComplete : 1;          // Completion flag
+    uint32_t reserved : 4;            // Future use
+    
+    // Variable length: Super fill levels (0-5 bytes)
+    uint8_t superFills[5];       // Each: 0,25,50,75,100 or 255=unset
+    
+    // Drone frame reminder (4 bytes, optional)
+    uint32_t droneFrameRemovalDate;   // 0 if not applicable
+    
+    uint16_t crc16;              // CRC checksum (2 bytes)
+};
+// Total: 12 + 4 + 5 + 4 + 2 = 27 bytes minimum
+//        12 + 4 + 5 + 4 + 2 = 27 bytes typical
+```
+
+**Storage Functions API:**
+```cpp
+// Save inspection to NVS
+bool saveInspectionToNVS(const InspectionRecord& record);
+
+// Load inspection from NVS
+bool loadInspectionFromNVS(uint32_t recordId, InspectionRecord& record);
+
+// Get all inspection IDs from NVS
+std::vector<uint32_t> getAllInspectionIDs();
+
+// Delete inspection from NVS
+bool deleteInspectionFromNVS(uint32_t recordId);
+
+// Get NVS storage statistics
+struct NVSStats {
+    size_t usedEntries;
+    size_t freeEntries;
+    size_t totalBytes;
+    size_t usedBytes;
+};
+bool getNVSStats(NVSStats& stats);
+
+// Clear all inspections (for factory reset)
+bool clearAllInspections();
+```
 
 ---
 
@@ -701,9 +795,55 @@ Global navigation (double-click, long-press) handled at app level
 
 #### TR-009: Memory Requirements
 - Flash: < 100KB for app code and assets
-- RAM: < 50KB during runtime
+- RAM: < 100KB during runtime (all screens + data)
 - Stack: < 4KB per app
 - No dynamic memory allocation in ISR handlers
+
+#### TR-010: NVS Partition Configuration
+**Non-Volatile Storage Setup:**
+- Partition label: "nvs_beehive" or use default "nvs" partition
+- Partition type: data
+- Partition subtype: nvs
+- Minimum size: 20KB (0x5000 bytes)
+- Recommended size: 32KB (0x8000 bytes) for 100+ inspections
+
+**Partition Table Entry** (partitions.csv):
+```csv
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x8000,
+```
+
+**Storage Capacity Calculation:**
+- Per inspection record: ~30-60 bytes (serialized + overhead)
+- 32KB partition: ~500-1000 inspection records theoretical maximum
+- Target: Store 100-200 recent inspections locally
+- Older records exported/synced to external storage
+
+**NVS Library Usage:**
+```cpp
+#include <nvs_flash.h>
+#include <nvs.h>
+
+// Initialize NVS on boot
+esp_err_t err = nvs_flash_init();
+if (err == ESP_ERR_NVS_NO_FREE_PAGES || 
+    err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    // NVS partition was truncated, erase and reinitialize
+    ESP_ERROR_CHECK(nvs_flash_erase());
+    err = nvs_flash_init();
+}
+ESP_ERROR_CHECK(err);
+
+// Open NVS namespace
+nvs_handle_t nvs_handle;
+err = nvs_open("beehive_insp", NVS_READWRITE, &nvs_handle);
+```
+
+**Wear Leveling Considerations:**
+- NVS automatically handles wear leveling
+- Limit write frequency: Only on inspection completion
+- Avoid frequent partial updates
+- Consider flash endurance: ~100,000 write cycles per sector
 
 ### 5.3 Dependencies
 
@@ -961,14 +1101,89 @@ struct InspectionRecord {
 
 ### 6.5 Icons and Visual Elements
 
-#### UI-016: Icon Set
-- **Queen**: Crown emoji or stylized queen bee icon (👑 or 🐝)
-- **Queen Cells**: Honeycomb with larvae
-- **Supers**: Stacked boxes
-- **Temperament**: Emoji faces (😊😠 etc.) or bee behavior icons
-- **Brood**: Honeycomb pattern with larvae
-- **Treatment**: Flask/beaker for chemicals, frame icon for drone frames
-- **Pests**: Specific icons for moth, beetle, disease indicators
+#### UI-016: Icon Set and Sizing
+**Circular Display Constraints:**
+- Display: 1.28" diameter, 240x240 pixels
+- Effective circular area: ~226 pixel diameter (94% of square)
+- Icon sizing: Fill 80% of effective circular display area
+- Maximum icon dimensions: **180px × 180px** (80% of 226px effective circle)
+- Recommended icon size: **160-180px** for primary app icons
+- In-screen icons (context icons): **40-60px**
+
+**Icon Design Guidelines:**
+- **Format**: PNG with transparency
+- **Style**: Simple, high contrast, recognizable at small sizes
+- **Color**: Monochrome or limited palette (2-3 colors max)
+- **Circular fitting**: Icons should work well within circular frame
+- **Safe area**: Keep critical elements within 150px diameter center
+- **Edge buffer**: 10px minimum from edge for visual comfort
+
+**Icon Specifications by Usage:**
+
+1. **App Launch Icon** (shown in main menu):
+   - Size: 180×180px
+   - Format: PNG-24 with alpha channel
+   - Background: Transparent
+   - Design: Fits within 170px circle (safe area)
+   - Example: Beehive icon for inspection app
+
+2. **Screen Header Icons** (shown at top of each inspection screen):
+   - Size: 60×60px
+   - Format: PNG-24 with alpha channel
+   - Background: Transparent
+   - Single color or simple gradient
+   - Examples: Queen crown, honeycomb, thermometer, etc.
+
+3. **In-Context Icons** (shown within selections):
+   - Size: 40×40px
+   - Format: PNG-24 with alpha channel
+   - Simple, recognizable symbols
+   - Examples: Emojis for temperament, flask for treatments
+
+**Specific Icon Requirements:**
+
+| Icon | Size | Usage | Design Notes |
+|------|------|-------|--------------|
+| Beehive/Inspection App | 180×180px | Main menu | Primary app identifier |
+| Queen Crown | 60×60px | Screen 1 header | Simple crown or 👑 |
+| Queen Cells | 60×60px | Screen 2 header | Honeycomb with larvae |
+| Stacked Boxes | 60×60px | Screen 3 header | 2-3 boxes representing supers |
+| Bee Face | 60×60px | Screen 4 header | Bee with expression variations |
+| Honeycomb Frames | 60×60px | Screen 5 header | Frame outline with comb |
+| Treatment Flask | 60×60px | Screen 6 header | Lab flask or medicine bottle |
+| Pest Warning | 60×60px | Screen 7 header | Beetle, moth, or alert symbol |
+| Temperament Faces | 40×40px | Screen 4 options | Emoji or simple faces |
+| Treatment Types | 40×40px | Screen 6 options | Flask, frame icons |
+
+**Circular Display Optimization:**
+All icons must be designed considering the circular screen:
+- Test visibility at edges (avoid rectangular layouts)
+- Use circular or rounded shapes where possible
+- Center important details
+- High contrast for outdoor visibility
+
+**Asset File Naming Convention:**
+```
+assets/
+├── icon_app_180.png           // Main app icon
+├── icon_queen_60.png          // Queen right header
+├── icon_cells_60.png          // Queen cells header
+├── icon_supers_60.png         // Supers header
+├── icon_temperament_60.png    // Temperament header
+├── icon_brood_60.png          // Brood header
+├── icon_treatment_60.png      // Treatment header
+├── icon_pests_60.png          // Pests header
+├── icon_calm_40.png           // Temperament: calm
+├── icon_angry_40.png          // Temperament: angry
+├── icon_sticky_40.png         // Temperament: sticky
+└── ...
+```
+
+**Loading and Display:**
+- Icons loaded during `onSetup()` into image buffers
+- Cached in memory to avoid repeated file reads
+- Displayed using LovyanGFX drawPng() or pushImage()
+- Centered within circular display bounds
 
 #### UI-017: Progress Indicator
 - Position: Bottom edge or around perimeter
@@ -1134,6 +1349,30 @@ struct InspectionRecord {
 - Incomplete inspections can be resumed
 - InspectionRecord completion percentage calculates correctly
 
+#### UT-007: NVS Storage and Serialization
+**Test Cases:**
+- InspectionRecord correctly serializes to InspectionRecordNVS format
+- Serialized data size is within 27-byte target
+- Deserialization recovers all original data accurately
+- CRC16 checksum correctly detects data corruption
+- Bit-packing correctly encodes/decodes all field values
+- Edge cases handled: 0 supers, maximum brood frames (40), all pests present
+- NVS write/read operations complete successfully
+- Multiple inspection records can be stored and retrieved
+- NVS survives power cycle (data persists)
+- Corrupted NVS data is detected and handled gracefully
+
+#### UT-008: Icon Rendering
+**Test Cases:**
+- All icons load successfully from assets folder
+- 180×180px app icon renders centered in circular display
+- 60×60px screen header icons display correctly on all 7 screens
+- 40×40px context icons render at correct sizes
+- Icons remain visible within circular display bounds (no clipping)
+- PNG transparency renders correctly
+- Icons display with appropriate contrast on background colors
+- Memory usage stays within limits with all icons loaded
+
 ### 8.2 Integration Tests
 
 #### IT-001: Hardware Integration
@@ -1168,6 +1407,27 @@ struct InspectionRecord {
 - RFID-compatible data format can be generated
 - Database sync format is correctly generated
 - Timestamps are consistent across all inspection data
+
+#### IT-005: NVS Integration
+**Test Cases:**
+- NVS partition initializes correctly on first boot
+- Inspection records save to NVS successfully
+- Multiple inspections (10+) can be saved without errors
+- Saved inspections load correctly after app restart
+- NVS handles full storage gracefully (200 record limit)
+- Old records can be deleted to free space
+- NVS statistics (used/free space) report correctly
+- Power loss during save doesn't corrupt NVS partition
+- Factory reset clears all NVS data
+
+#### IT-006: Icon Asset Integration
+**Test Cases:**
+- All required icon files present in assets folder
+- Icon file sizes within specified limits
+- Icons load during app initialization without errors
+- Display renders icons at correct sizes and positions
+- No memory leaks when loading/unloading icons
+- Icons cache properly to avoid repeated file I/O
 
 ### 8.3 System Tests
 
@@ -1252,6 +1512,47 @@ struct InspectionRecord {
 6. Verify date displayed to user
 
 **Expected Result:** Reminder date correctly calculated and displayed
+
+#### ST-007: NVS Persistence and Recovery
+**Scenario:** Verify data persists across power cycles
+**Steps:**
+1. Complete 3 full inspections
+2. Save all to NVS
+3. Verify all 3 records in NVS storage
+4. Power off device (disconnect power)
+5. Power on device
+6. Launch app
+7. Verify all 3 inspection records can be loaded
+8. Verify data integrity (all fields match original)
+
+**Expected Result:** All data survives power cycle, no corruption
+
+#### ST-008: Icon Display Across All Screens
+**Scenario:** Verify icons render correctly throughout inspection flow
+**Steps:**
+1. Launch app and verify 180×180px app icon displayed
+2. Navigate through all 7 screens
+3. Verify each screen shows correct 60×60px header icon
+4. On Screen 4 (Temperament), verify all 40×40px emoji icons display
+5. On Screen 6 (Treatment), verify treatment type icons display
+6. Verify no icon clipping on circular display
+7. Check visual quality in outdoor lighting
+
+**Expected Result:** All icons render correctly, no clipping, clearly visible
+
+#### ST-009: Storage Capacity Test
+**Scenario:** Test NVS storage limits
+**Steps:**
+1. Create and save 100 inspection records
+2. Verify all save successfully
+3. Check NVS storage statistics
+4. Attempt to save 101st record
+5. Verify appropriate handling (success or graceful limit notification)
+6. Delete oldest 50 records
+7. Verify space freed
+8. Save 50 new records
+
+**Expected Result:** NVS handles capacity correctly, no crashes or corruption
 
 ### 8.4 User Acceptance Tests
 
@@ -1364,7 +1665,7 @@ struct InspectionRecord {
 ### 9.3 Scalability
 
 #### PERF-008: Data Volume
-- Support for 1000+ inspections in memory/storage
+- Support for 100-200 inspections in NVS storage
 - RFID tag capacity: 10-20 inspection records
 - Database sync: Batch upload 100+ records without performance degradation
 
@@ -1373,6 +1674,13 @@ struct InspectionRecord {
 - Maximum text elements per screen: 15
 - Maximum interactive elements per screen: 7
 - Smooth animation even with full screen layout
+
+#### PERF-010: NVS Storage Performance
+- Write time per inspection: < 50ms
+- Read time per inspection: < 20ms
+- NVS initialization time: < 100ms on boot
+- Maximum NVS space used: 16KB for 200 records (average 80 bytes/record with overhead)
+- Flash wear: < 1 write per inspection (minimize unnecessary writes)
 
 ---
 
@@ -1472,6 +1780,30 @@ struct InspectionRecord {
 - M5Stack Dial device (SKU: K130)
 - RFID cards (standard credit card size, ISO/IEC 14443 Type A/B)
 - Power supply: USB-C or 6-36V DC or LiPo battery (1.25mm-2P connector)
+
+#### DEP-002: Icon Assets
+All icon assets must be prepared before development begins:
+- **Format**: PNG-24 with alpha transparency
+- **Color mode**: RGBA (32-bit)
+- **Optimization**: Compressed for minimal file size
+- **Total asset size**: < 50KB for all icons combined
+
+**Required Icons:**
+1. App icon: 180×180px (beehive/inspection symbol)
+2. Screen headers: 7 icons @ 60×60px each
+3. Context icons: ~10-15 icons @ 40×40px each
+
+**Asset Preparation Tools:**
+- Image editing: Photoshop, GIMP, Inkscape, or Figma
+- PNG optimization: TinyPNG, ImageOptim, or pngcrush
+- Validation: Test visibility on circular 240×240px canvas
+
+**File Size Targets:**
+- 180×180px icon: < 10KB
+- 60×60px icons: < 3KB each
+- 40×40px icons: < 2KB each
+
+Icons should be provided in `/assets/` directory before `onSetup()` implementation.
 
 ### 13.2 Software Dependencies
 
@@ -1662,6 +1994,30 @@ The Beehive Inspection feature is considered complete when:
 - [ ] Completion percentage calculates correctly
 - [ ] No data loss during app lifecycle transitions
 - [ ] RFID-compatible format can be generated
+
+**NVS Storage:**
+- [ ] NVS partition configured correctly (32KB minimum)
+- [ ] Inspection records serialize to < 30 bytes average
+- [ ] Data saves to NVS successfully
+- [ ] Data loads from NVS correctly after restart
+- [ ] CRC16 checksum validates data integrity
+- [ ] 100+ inspections can be stored
+- [ ] Old records can be deleted to free space
+- [ ] Power cycle does not corrupt data
+- [ ] Write operations < 50ms
+- [ ] Read operations < 20ms
+
+**Icon Assets:**
+- [ ] All required icon files present in /assets/
+- [ ] App icon: 180×180px, < 10KB file size
+- [ ] Screen header icons: 7 @ 60×60px, < 3KB each
+- [ ] Context icons: 40×40px, < 2KB each
+- [ ] Total asset size < 50KB
+- [ ] All icons render without clipping on circular display
+- [ ] Icons clearly visible in outdoor lighting
+- [ ] PNG transparency works correctly
+- [ ] Icons load during initialization without errors
+- [ ] No memory leaks from icon loading
 
 **Performance:**
 - [ ] No memory leaks detected in 24-hour soak test
@@ -1921,26 +2277,187 @@ struct InspectionRecord {
     }
 };
 
-// ===== SERIALIZATION HELPERS =====
-// For RFID/Database storage
-struct InspectionRecordCompact {
-    // Bit-packed version for efficient storage
-    uint32_t recordId;
-    uint32_t hiveId;
-    uint32_t timestamp;
+// ===== SPACE-EFFICIENT NVS SERIALIZATION =====
+// Optimized structure for non-volatile storage
+// Uses bit-packing to minimize flash usage
+
+#pragma pack(push, 1)  // Ensure no padding
+struct InspectionRecordNVS {
+    // Fixed fields: 12 bytes
+    uint32_t recordId;           // 4 bytes
+    uint32_t hiveId;             // 4 bytes
+    uint32_t timestamp;          // 4 bytes (start time)
     
-    uint8_t queenRight : 2;           // 2 bits (0=unknown, 1=yes, 2=no)
-    uint8_t supersedureCells : 3;     // 3 bits (5 options)
-    uint8_t swarmCells : 3;           // 3 bits (5 options)
-    uint8_t superCount : 3;           // 3 bits (0-5)
-    uint8_t temperament : 3;          // 3 bits (7 options)
-    uint8_t broodFrames : 6;          // 6 bits (0-40)
-    uint8_t treatment : 3;            // 3 bits (6 options)
-    uint8_t pests : 4;                // 4 bits (4 pest flags)
-    // Super fills stored separately if needed
+    // Bit-packed fields: 4 bytes total
+    // Packing all inspection data into 32 bits
+    uint32_t queenRight : 2;          // 0=unknown, 1=yes, 2=no (2 bits)
+    uint32_t supersedureCells : 3;    // 0-4 encoding CellCount (3 bits)
+    uint32_t swarmCells : 3;          // 0-4 encoding CellCount (3 bits)
+    uint32_t superCount : 3;          // 0-5 (3 bits)
+    uint32_t temperament : 3;         // 0-6 (3 bits)
+    uint32_t broodFrames : 6;         // 0-40 (6 bits, can represent 0-63)
+    uint32_t treatment : 3;           // 0-5 (3 bits)
+    uint32_t pestWaxMoth : 1;         // Boolean (1 bit)
+    uint32_t pestHiveBeetle : 1;      // Boolean (1 bit)
+    uint32_t pestAFB : 1;             // Boolean (1 bit)
+    uint32_t pestEFB : 1;             // Boolean (1 bit)
+    uint32_t isComplete : 1;          // Boolean (1 bit)
+    uint32_t reserved : 4;            // Future use (4 bits)
+    // Total: 32 bits = 4 bytes
     
-    // Total: ~10 bytes + super fills array
+    // Variable length super fills: 0-5 bytes
+    // Only included if superCount > 0
+    uint8_t superFills[5];       // 0/25/50/75/100 or 255=unset
+    
+    // Optional drone frame reminder: 4 bytes
+    // Only included if treatment == DRONE_FRAME_IN
+    uint32_t droneFrameRemovalDate;
+    
+    // CRC16 checksum for data integrity: 2 bytes
+    uint16_t crc16;
+    
+    // Total size breakdown:
+    // Minimum: 12 + 4 + 2 = 18 bytes (no supers, no drone frame)
+    // Typical:  12 + 4 + 5 + 2 = 23 bytes (with supers)
+    // Maximum: 12 + 4 + 5 + 4 + 2 = 27 bytes (with supers + drone frame)
 };
+#pragma pack(pop)
+
+// ===== SERIALIZATION FUNCTIONS =====
+
+// Serialize InspectionRecord to compact NVS format
+InspectionRecordNVS serializeForNVS(const InspectionRecord& record) {
+    InspectionRecordNVS nvs = {0};
+    
+    nvs.recordId = record.recordId;
+    nvs.hiveId = record.hiveId;
+    nvs.timestamp = record.timestampStart;
+    
+    // Pack bit fields
+    nvs.queenRight = (uint32_t)record.queenRight.status;
+    nvs.supersedureCells = (uint32_t)record.queenCells.supersedureCells;
+    nvs.swarmCells = (uint32_t)record.queenCells.swarmCells;
+    nvs.superCount = record.supers.superCount;
+    nvs.temperament = (uint32_t)record.temperament.temperament;
+    nvs.broodFrames = record.broodSize.frameCount;
+    nvs.treatment = (uint32_t)record.treatment.treatment;
+    nvs.pestWaxMoth = record.pests.waxMoth ? 1 : 0;
+    nvs.pestHiveBeetle = record.pests.hiveBeetle ? 1 : 0;
+    nvs.pestAFB = record.pests.americanFoulBrood ? 1 : 0;
+    nvs.pestEFB = record.pests.europeanFoulBrood ? 1 : 0;
+    nvs.isComplete = record.isComplete ? 1 : 0;
+    
+    // Pack super fills
+    for (int i = 0; i < 5; i++) {
+        nvs.superFills[i] = (uint8_t)record.supers.fillLevels[i];
+    }
+    
+    // Pack drone frame reminder if applicable
+    if (record.treatment.treatment == TREATMENT_DRONE_FRAME_IN) {
+        nvs.droneFrameRemovalDate = record.treatment.droneFrameRemovalDate;
+    } else {
+        nvs.droneFrameRemovalDate = 0;
+    }
+    
+    // Calculate CRC16 checksum
+    nvs.crc16 = calculateCRC16((uint8_t*)&nvs, sizeof(nvs) - 2);
+    
+    return nvs;
+}
+
+// Deserialize from NVS format to InspectionRecord
+InspectionRecord deserializeFromNVS(const InspectionRecordNVS& nvs) {
+    // Verify checksum
+    uint16_t calculatedCRC = calculateCRC16((uint8_t*)&nvs, sizeof(nvs) - 2);
+    if (calculatedCRC != nvs.crc16) {
+        // CRC mismatch - data corruption
+        // Handle error appropriately
+    }
+    
+    InspectionRecord record;
+    
+    record.recordId = nvs.recordId;
+    record.hiveId = nvs.hiveId;
+    record.timestampStart = nvs.timestamp;
+    
+    // Unpack bit fields
+    record.queenRight.status = (QueenRightStatus)nvs.queenRight;
+    record.queenRight.isSet = (nvs.queenRight != QUEEN_RIGHT_UNKNOWN);
+    
+    record.queenCells.supersedureCells = (CellCount)nvs.supersedureCells;
+    record.queenCells.swarmCells = (CellCount)nvs.swarmCells;
+    record.queenCells.isSet = true;
+    
+    record.supers.superCount = nvs.superCount;
+    for (int i = 0; i < 5; i++) {
+        record.supers.fillLevels[i] = (FillPercentage)nvs.superFills[i];
+    }
+    record.supers.isSet = (nvs.superCount > 0);
+    
+    record.temperament.temperament = (BeeTemperament)nvs.temperament;
+    record.temperament.isSet = (nvs.temperament != TEMPERAMENT_UNKNOWN);
+    
+    record.broodSize.frameCount = nvs.broodFrames;
+    record.broodSize.isSet = true;
+    
+    record.treatment.treatment = (TreatmentType)nvs.treatment;
+    record.treatment.droneFrameRemovalDate = nvs.droneFrameRemovalDate;
+    record.treatment.isSet = (nvs.treatment != TREATMENT_NONE);
+    
+    record.pests.waxMoth = (nvs.pestWaxMoth == 1);
+    record.pests.hiveBeetle = (nvs.pestHiveBeetle == 1);
+    record.pests.americanFoulBrood = (nvs.pestAFB == 1);
+    record.pests.europeanFoulBrood = (nvs.pestEFB == 1);
+    record.pests.isSet = true;
+    
+    record.isComplete = (nvs.isComplete == 1);
+    
+    return record;
+}
+
+// CRC16 calculation (CCITT polynomial)
+uint16_t calculateCRC16(const uint8_t* data, size_t length) {
+    uint16_t crc = 0xFFFF;
+    for (size_t i = 0; i < length; i++) {
+        crc ^= (uint16_t)data[i] << 8;
+        for (int j = 0; j < 8; j++) {
+            if (crc & 0x8000) {
+                crc = (crc << 1) ^ 0x1021;
+            } else {
+                crc <<= 1;
+            }
+        }
+    }
+    return crc;
+}
+
+// ===== NVS STORAGE EXAMPLE =====
+// Example showing how data is stored in a single NVS blob
+
+// Example inspection data:
+// Hive #5, Queen Right=Yes, 2 Supersedure cells, No swarm cells,
+// 3 supers (75%, 50%, 100%), Calm temperament, 18 brood frames,
+// Oxalic acid treatment, Hive beetle present
+
+// Serialized to NVS:
+// recordId:    00 00 00 01  (1)
+// hiveId:      00 00 00 05  (5)
+// timestamp:   65 A2 F3 10  (example timestamp)
+// bitfields:   01 42 48 21  (all data packed into 4 bytes)
+//   - queenRight: 1 (yes)
+//   - supersedureCells: 2 (1-5)
+//   - swarmCells: 0 (no)
+//   - superCount: 3
+//   - temperament: 1 (calm)
+//   - broodFrames: 18
+//   - treatment: 1 (oxalic acid)
+//   - pests: 0b0010 (hive beetle only)
+//   - isComplete: 1
+// superFills:  4B 32 64 FF FF  (75, 50, 100, unset, unset)
+// droneRemoval: 00 00 00 00  (not applicable)
+// crc16:       A3 2F  (example checksum)
+// 
+// Total: 27 bytes for complete inspection record
 ```
 
 ### Appendix C: Color Reference
@@ -1956,7 +2473,89 @@ struct InspectionRecordCompact {
 #define COLOR_ERROR          0xF800  // Red
 ```
 
-### Appendix D: Interaction Timing Constants
+### Appendix D: Circular Display Icon Layout
+
+**M5Dial Display Specifications:**
+- Physical size: 1.28 inches diagonal
+- Resolution: 240×240 pixels (square canvas)
+- Effective circular area: ~226 pixel diameter
+- Pixel density: ~236 PPI
+
+**Icon Sizing Visual Guide:**
+```
+┌─────────────────────────────────┐
+│         240 × 240 px            │
+│                                 │
+│     ╱─────────────────╲         │
+│   ╱    226px circle    ╲        │
+│  │                       │       │
+│  │   ┌─────────────┐   │       │  ← 180×180px app icon
+│  │   │             │   │       │     (80% of effective area)
+│  │   │  App Icon   │   │       │
+│  │   │  180×180    │   │       │
+│  │   └─────────────┘   │       │
+│  │                       │       │
+│   ╲    Safe Area 150px  ╱        │
+│     ╲─────────────────╱         │
+│                                 │
+│  Screen header icons:           │
+│  ┌──┐ 60×60px                   │
+│  └──┘                           │
+│                                 │
+│  Context icons:                 │
+│  ┌─┐ 40×40px                    │
+│  └─┘                            │
+└─────────────────────────────────┘
+
+Sizing breakdown:
+- 240px: Full display width
+- 226px: Effective visible circular area (94%)
+- 180px: App icon maximum (80% of 226px)
+- 150px: Safe area for critical elements (66%)
+- 60px: Screen header icons (25% of 240px)
+- 40px: Small context icons (17% of 240px)
+```
+
+**Icon Placement Guidelines:**
+1. **Centered icons**: Position at (120, 120) - display center
+2. **Header icons**: Position at (120, 30) - top center
+3. **Progress indicators**: Along bottom arc (y > 200)
+4. **Status icons**: Upper corners (avoid extreme edges)
+
+### Appendix E: NVS Partition Configuration
+
+**partitions.csv Example:**
+```csv
+# Name,     Type, SubType,  Offset,   Size,     Flags
+# Bootloader and partition table
+nvs,        data, nvs,      0x9000,   0x8000,   
+otadata,    data, ota,      0x11000,  0x2000,   
+app0,       app,  ota_0,    0x13000,  0x200000, 
+app1,       app,  ota_1,    0x213000, 0x200000, 
+spiffs,     data, spiffs,   0x413000, 0x1E0000, 
+coredump,   data, coredump, 0x5F3000, 0xD000,   
+```
+
+**NVS Partition Details:**
+- **Offset**: 0x9000 (36KB from start)
+- **Size**: 0x8000 (32KB)
+- **Location**: Immediately after bootloader
+- **Type**: Data partition, NVS subtype
+- **Used for**: Inspection records, app settings, configuration
+
+**Storage Calculation:**
+```
+32KB total NVS space
+- 4KB NVS overhead (metadata, wear leveling)
+= 28KB available for data
+
+28KB ÷ 140 bytes per entry average
+≈ 200 inspection records capacity
+
+Actual usable: ~150-180 records (accounting for keys, overhead)
+```
+
+### Appendix F: Interaction Timing Constants
 
 ```cpp
 #define DEBOUNCE_TIME_MS        50    // Button debounce

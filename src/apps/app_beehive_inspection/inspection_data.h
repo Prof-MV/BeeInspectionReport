@@ -6,9 +6,16 @@
  */
 #pragma once
 #include <stdint.h>
+#include <cstddef>
 #include <array>
 
 namespace BEEHIVE_INSPECTION {
+
+// NVS Storage constants
+constexpr const char* NVS_NAMESPACE = "beehive_insp";
+constexpr const char* NVS_KEY_PREFIX = "inspect_";
+constexpr const char* NVS_KEY_NEXT_ID = "next_id";
+constexpr std::size_t MAX_INSPECTION_RECORDS = 100;
 
 // Screen 2: Queen Cell count options
 enum class CellCount : uint8_t {
@@ -156,6 +163,9 @@ struct InspectionRecord {
 
     // Reset to defaults
     void reset() {
+        recordId = 0;
+        hiveId = 0;
+        timestamp = 0;
         queenRight = true;
         supersedureCells = CellCount::NO;
         swarmCells = CellCount::NO;
@@ -167,7 +177,66 @@ struct InspectionRecord {
         broodFrames = 0;
         treatment = Treatment::NONE;
         pests = PEST_NONE;
+        isComplete = false;
     }
+
+    // Metadata fields for NVS storage
+    uint32_t recordId = 0;
+    uint32_t hiveId = 0;
+    uint32_t timestamp = 0;
+    bool isComplete = false;
 };
+
+// Bit-packed structure for efficient NVS storage (~27 bytes)
+struct __attribute__((packed)) InspectionRecordNVS {
+    uint32_t recordId;           // 4 bytes
+    uint32_t hiveId;             // 4 bytes
+    uint32_t timestamp;          // 4 bytes
+
+    // Bit-packed fields (4 bytes total)
+    uint32_t queenRight : 2;          // 0=unknown, 1=yes, 2=no
+    uint32_t supersedureCells : 3;    // 0-4 (No/Yes/1-5/5-10/10+)
+    uint32_t swarmCells : 3;          // 0-4
+    uint32_t superCount : 3;          // 0-5
+    uint32_t temperament : 3;         // 0-5
+    uint32_t broodFrames : 6;         // 0-40
+    uint32_t treatment : 3;           // 0-5
+    uint32_t pestFlags : 4;           // 4 bits for 4 pests
+    uint32_t isComplete : 1;          // Completion flag
+    uint32_t reserved : 4;            // Future use
+
+    // Super fill levels (5 bytes)
+    uint8_t superFills[5];            // Each: 0-5 for FillPercentage enum
+
+    uint16_t crc16;                   // CRC checksum (2 bytes)
+
+    // Convert from InspectionRecord
+    void fromRecord(const InspectionRecord& rec);
+
+    // Convert to InspectionRecord
+    void toRecord(InspectionRecord& rec) const;
+
+    // Calculate and set CRC
+    void updateCRC();
+
+    // Validate CRC
+    bool validateCRC() const;
+};
+
+// CRC16 calculation (CCITT polynomial)
+inline uint16_t calculateCRC16(const uint8_t* data, std::size_t length) {
+    uint16_t crc = 0xFFFF;
+    for (std::size_t i = 0; i < length; i++) {
+        crc ^= (uint16_t)data[i] << 8;
+        for (int j = 0; j < 8; j++) {
+            if (crc & 0x8000) {
+                crc = (crc << 1) ^ 0x1021;
+            } else {
+                crc <<= 1;
+            }
+        }
+    }
+    return crc;
+}
 
 } // namespace BEEHIVE_INSPECTION

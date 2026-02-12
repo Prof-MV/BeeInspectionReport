@@ -6,6 +6,8 @@
  */
 #include "app_beehive_inspection.h"
 #include "../common_define.h"
+#include "inspection_storage.h"
+#include <esp_timer.h>
 
 // Include all screen headers
 #include "screens/screen_queen_right.h"
@@ -19,6 +21,8 @@
 using namespace MOONCAKE::USER_APP;
 using namespace BEEHIVE_INSPECTION;
 
+// Use display constants from screen_base.h
+
 void BeehiveInspection::onSetup() {
     setAppName("Beehive");
     setAllowBgRunning(false);
@@ -27,6 +31,11 @@ void BeehiveInspection::onSetup() {
     BEEHIVE_INSPECTION_NS::Data_t default_data;
     _data = default_data;
     _data.hal = (HAL::HAL*)getUserData();
+
+    // Initialize NVS storage for inspection records
+    if (!initNVSStorage()) {
+        _log_e("Failed to initialize NVS storage");
+    }
 }
 
 void BeehiveInspection::onCreate() {
@@ -194,8 +203,13 @@ void BeehiveInspection::saveAndExit() {
         _screens[_data.currentScreenIndex]->onExit();
     }
 
-    // TODO: Persist _record to storage (NVS or file)
-    // For now, just log the data
+    // Set record metadata
+    _record.recordId = getNextRecordID();
+    _record.timestamp = (uint32_t)(esp_timer_get_time() / 1000000);  // Unix timestamp in seconds
+    _record.isComplete = (_data.currentScreenIndex == SCREEN_COUNT - 1);
+
+    // Log the inspection data
+    _log("Saving record ID: %lu", (unsigned long)_record.recordId);
     _log("Queen Right: %s", _record.queenRight ? "Yes" : "No");
     _log("Supersedure: %d, Swarm: %d",
          static_cast<int>(_record.supersedureCells),
@@ -206,10 +220,22 @@ void BeehiveInspection::saveAndExit() {
     _log("Treatment: %s", getTreatmentString(_record.treatment));
     _log("Pests: 0x%02X", _record.pests);
 
-    // Double beep to confirm save
-    _data.hal->buzz.tone(2000, 100);
-    delay(50);
-    _data.hal->buzz.tone(2500, 100);
+    // Persist to NVS
+    if (saveInspectionToNVS(_record)) {
+        _log("Inspection saved to NVS successfully");
+        // Double beep to confirm save
+        _data.hal->buzz.tone(2000, 100);
+        delay(50);
+        _data.hal->buzz.tone(2500, 100);
+    } else {
+        _log_e("Failed to save inspection to NVS");
+        // Error beep pattern
+        _data.hal->buzz.tone(1000, 100);
+        delay(50);
+        _data.hal->buzz.tone(1000, 100);
+        delay(50);
+        _data.hal->buzz.tone(1000, 100);
+    }
 
     destroyApp();
 }
@@ -217,10 +243,10 @@ void BeehiveInspection::saveAndExit() {
 void BeehiveInspection::drawLongPressProgress(float progress) {
     LGFX_Sprite* canvas = _gui.getCanvas();
 
-    // Draw a progress arc around the edge of the display
-    int centerX = 120;
-    int centerY = 120;
-    int radius = 115;
+    // Draw a progress arc around the edge of the visible circular display area
+    int centerX = DISPLAY_CENTER_X;
+    int centerY = DISPLAY_CENTER_Y;
+    int radius = VISIBLE_RADIUS - 3;  // Stay within visible circular area
     int thickness = 6;
 
     // Calculate arc angle based on progress
