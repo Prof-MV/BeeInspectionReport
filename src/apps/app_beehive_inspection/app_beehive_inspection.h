@@ -47,6 +47,11 @@ private:
 
     // Data model
     BEEHIVE_INSPECTION::InspectionRecord _record;
+    BEEHIVE_INSPECTION::InspectionContext _context;
+
+    // Selection screen (shown if no hive pre-selected)
+    BEEHIVE_INSPECTION::ScreenBase* _selectionScreen = nullptr;
+    bool _inSelectionMode = false;
 
     // Screen instances
     BEEHIVE_INSPECTION::ScreenBase* _screens[BEEHIVE_INSPECTION::SCREEN_COUNT] = {nullptr};

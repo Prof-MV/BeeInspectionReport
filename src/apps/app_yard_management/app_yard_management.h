@@ -25,17 +25,16 @@ namespace YARD_MANAGEMENT_NS {
         uint32_t buttonPressStart = 0;
         bool isLongPressHandled = false;
 
-        // Double-click detection
-        uint32_t lastReleaseTime = 0;
-        bool waitingForDoubleClick = false;
-
         // Long press visual feedback
         bool showLongPressIndicator = false;
+
+        // Track if back action was triggered (to prevent exit on same press)
+        bool isBackHandled = false;
     };
 
     // Timing constants
-    constexpr uint32_t LONG_PRESS_MS = 800;
-    constexpr uint32_t DOUBLE_CLICK_WINDOW_MS = 300;
+    constexpr uint32_t BACK_PRESS_MS = 600;      // Hold for back action
+    constexpr uint32_t EXIT_PRESS_MS = 1500;     // Hold longer to exit app
 }
 
 class YardManagement : public APP_BASE {
@@ -54,6 +53,7 @@ private:
     // Input handling
     void handleEncoder();
     void handleButton();
+    void handleScreenUpdate();
 
     // Screen navigation
     void transitionToScreen(YARD_MANAGEMENT::ScreenType newScreen);
@@ -63,8 +63,8 @@ private:
     YARD_MANAGEMENT::ScreenBaseYM* createScreen(YARD_MANAGEMENT::ScreenType type);
     void destroyCurrentScreen();
 
-    // Long press indicator
-    void drawLongPressProgress(float progress);
+    // Long press indicator (isExit: false=back/orange, true=exit/green)
+    void drawLongPressProgress(float progress, bool isExit = false);
 
 public:
     YardManagement() = default;

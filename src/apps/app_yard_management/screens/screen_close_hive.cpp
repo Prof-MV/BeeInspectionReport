@@ -140,7 +140,7 @@ void ScreenCloseHive::renderRfidStep() {
         _canvas->setFont(&fonts::FreeSans9pt7b);
         _canvas->setTextColor(COLOR_SUCCESS);
         _canvas->setTextDatum(textdatum_t::bottom_center);
-        _canvas->drawString("Click to close hive", DISPLAY_CENTER_X, CONTENT_BOTTOM);
+        _canvas->drawString("Click: Close hive", DISPLAY_CENTER_X, CONTENT_BOTTOM);
     } else if (_scanError) {
         drawRfidError(_errorMessage);
 
@@ -170,22 +170,44 @@ void ScreenCloseHive::startRfidScan() {
     if (loadHive(_hiveToClose, hive)) {
         strncpy(_expectedTag, hive.rfidTagId, RFID_TAG_LENGTH);
     }
+
+    // Clear any previous tag detection and start scanning
+    if (_hal->rfid.isReady()) {
+        _hal->rfid.clearLastTag();
+        _hal->rfid.startScanning();
+    }
 }
 
 void ScreenCloseHive::simulateRfidScan() {
-    // For testing: simulate successful scan with expected tag
-    // In production, this would read from actual RFID hardware
-    strncpy(_scannedTag, _expectedTag, RFID_TAG_LENGTH);
-    _scanning = false;
-
-    if (verifyRfidTag()) {
-        _scanSuccess = true;
-        _scanError = false;
-    } else {
+    // Check if a tag was detected (non-blocking)
+    if (!_hal->rfid.isReady()) {
         _scanSuccess = false;
         _scanError = true;
-        strcpy(_errorMessage, "Wrong tag!");
+        strcpy(_errorMessage, "RFID not ready");
+        _scanning = false;
+        return;
     }
+
+    // Check if tag was detected
+    if (_hal->rfid.wasTagDetected()) {
+        char tagBuffer[20] = {0};
+        if (_hal->rfid.getLastTagString(tagBuffer, sizeof(tagBuffer))) {
+            strncpy(_scannedTag, tagBuffer, RFID_TAG_LENGTH);
+            _scannedTag[RFID_TAG_LENGTH] = '\0';
+
+            if (verifyRfidTag()) {
+                _scanSuccess = true;
+                _scanError = false;
+                _hal->buzz.tone(2000, 100);  // Success beep
+            } else {
+                _scanSuccess = false;
+                _scanError = true;
+                strcpy(_errorMessage, "Wrong tag!");
+            }
+            _scanning = false;
+        }
+    }
+    // If no tag detected yet, keep scanning
 }
 
 bool ScreenCloseHive::verifyRfidTag() {
@@ -284,12 +306,14 @@ NavigationResult ScreenCloseHive::onConfirm() {
                     render();
                 }
             } else if (_scanError) {
+                // Retry - restart scanning
                 startRfidScan();
-                simulateRfidScan();
                 buzzNavigate();
                 render();
             } else {
-                simulateRfidScan();
+                // Click while scanning = abort, go back to reason
+                _currentStep = CloseHiveStep::REASON;
+                buzzNavigate();
                 render();
             }
             break;
@@ -322,6 +346,35 @@ NavigationResult ScreenCloseHive::onBack() {
         default:
             result.nextScreen = ScreenType::HIVE_MGMT;
             break;
+    }
+
+    return result;
+}
+
+NavigationResult ScreenCloseHive::onUpdate() {
+    NavigationResult result;
+
+    // Check for RFID tag detection during scanning
+    if (_currentStep == CloseHiveStep::RFID_SCAN && _scanning && !_scanSuccess && !_scanError) {
+        simulateRfidScan();
+
+        if (_scanSuccess || _scanError) {
+            render();
+
+            // Auto-advance on successful scan
+            if (_scanSuccess) {
+                if (closeSelectedHive()) {
+                    buzzSuccess();
+                    result.nextScreen = ScreenType::YARD_SUMMARY;
+                } else {
+                    _scanError = true;
+                    strcpy(_errorMessage, "Close failed");
+                    _scanSuccess = false;
+                    buzzError();
+                    render();
+                }
+            }
+        }
     }
 
     return result;

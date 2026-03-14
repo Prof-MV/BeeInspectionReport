@@ -113,6 +113,23 @@ inline const char* getTreatmentString(Treatment treatment) {
     }
 }
 
+// Yard/Hive context for inspection display
+struct InspectionContext {
+    uint32_t yardNumber = 0;
+    uint32_t hiveNumber = 0;
+    char yardNickname[21] = {0};  // Max 20 chars + null
+
+    void reset() {
+        yardNumber = 0;
+        hiveNumber = 0;
+        yardNickname[0] = '\0';
+    }
+
+    bool isValid() const {
+        return hiveNumber != 0;
+    }
+};
+
 // Main inspection data record
 struct InspectionRecord {
     // Screen 1: Queen Right

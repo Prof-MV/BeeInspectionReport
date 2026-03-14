@@ -34,7 +34,7 @@ private:
     static const char* getCountName(int index);
 
 public:
-    ScreenQueenCells(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data);
+    ScreenQueenCells(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, InspectionContext* context);
 
     void onEnter() override;
     void onExit() override;

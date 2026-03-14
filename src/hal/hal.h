@@ -21,6 +21,7 @@
 #endif
 #include "tp/hal_tp.hpp"
 #include "rtc/hal_rtc.hpp"
+#include "rfid/hal_rfid.h"
 
 namespace HAL
 {
@@ -57,6 +58,9 @@ namespace HAL
 
         /* RTC */
         PCF8563::PCF8563 rtc;
+
+        /* RFID Reader */
+        RFID::RfidReader rfid;
 
         /**
          * @brief Init

@@ -12,8 +12,8 @@ namespace YARD_MANAGEMENT {
 class ScreenHiveMgmt : public ScreenBaseYM {
 private:
     int _selectedIndex;
-    static constexpr int OPTION_COUNT = 2;
-    static constexpr const char* OPTIONS[OPTION_COUNT] = {"Add Hive", "Close Hive"};
+    static constexpr int OPTION_COUNT = 3;
+    static constexpr const char* OPTIONS[OPTION_COUNT] = {"Select Hive", "Add Hive", "Close Hive"};
 
 public:
     ScreenHiveMgmt(HAL::HAL* hal, LGFX_Sprite* canvas, AppContext* context);

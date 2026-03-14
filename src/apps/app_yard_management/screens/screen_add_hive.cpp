@@ -14,7 +14,6 @@ namespace YARD_MANAGEMENT {
 ScreenAddHive::ScreenAddHive(HAL::HAL* hal, LGFX_Sprite* canvas, AppContext* context)
     : ScreenBaseYM(hal, canvas, context)
     , _currentStep(AddHiveStep::NUMBER)
-    , _currentDigit(0)
     , _originSelectedIndex(0)
     , _originScrollOffset(0)
     , _scanning(false)
@@ -62,14 +61,13 @@ void ScreenAddHive::loadOriginOptions() {
 
 void ScreenAddHive::onEnter() {
     _currentStep = AddHiveStep::NUMBER;
-    _currentDigit = 0;
     _originSelectedIndex = 0;
     _originScrollOffset = 0;
     _scanning = false;
     _scanSuccess = false;
     _scanError = false;
     _numberValid = true;
-    _context->newHiveNumber = MIN_HIVE_NUMBER;
+    _context->newHiveNumber = 1;  // Start from 1 for counter-style input
     _context->originType = HiveOriginType::SWARM;
     _context->originHiveNumber = 0;
     memset(_scannedTag, 0, sizeof(_scannedTag));
@@ -105,21 +103,21 @@ void ScreenAddHive::renderNumberStep() {
     drawHeader("ADD HIVE");
 
     char subheader[32];
-    snprintf(subheader, sizeof(subheader), "Yard %06lu", static_cast<unsigned long>(_context->selectedYardNumber));
+    snprintf(subheader, sizeof(subheader), "Yard %lu", static_cast<unsigned long>(_context->selectedYardNumber));
     drawSubheader(subheader);
 
-    drawSixDigitInput(_context->newHiveNumber, _currentDigit, 85);
+    drawCounterInput(_context->newHiveNumber, 1, MAX_HIVE_NUMBER, 80);
 
     _canvas->setFont(&fonts::FreeSans9pt7b);
-    _canvas->setTextDatum(textdatum_t::top_center);
+    _canvas->setTextDatum(textdatum_t::bottom_center);
 
     if (!_numberValid) {
         _canvas->setTextColor(COLOR_ERROR);
-        _canvas->drawString("Number exists!", DISPLAY_CENTER_X, 150);
-    } else {
-        _canvas->setTextColor(COLOR_TEXT_SECONDARY);
-        _canvas->drawString("Enter 6-digit number", DISPLAY_CENTER_X, 150);
+        _canvas->drawString("Number exists!", DISPLAY_CENTER_X, CONTENT_BOTTOM - 20);
     }
+
+    _canvas->setTextColor(COLOR_TEXT_SECONDARY);
+    _canvas->drawString("Click: Confirm", DISPLAY_CENTER_X, CONTENT_BOTTOM);
 }
 
 void ScreenAddHive::renderOriginStep() {
@@ -153,7 +151,7 @@ void ScreenAddHive::renderRfidStep() {
         _canvas->setFont(&fonts::FreeSans9pt7b);
         _canvas->setTextColor(COLOR_SUCCESS);
         _canvas->setTextDatum(textdatum_t::bottom_center);
-        _canvas->drawString("Click to save", DISPLAY_CENTER_X, CONTENT_BOTTOM);
+        _canvas->drawString("Click: Save hive", DISPLAY_CENTER_X, CONTENT_BOTTOM);
     } else if (_scanError) {
         drawRfidError(_errorMessage);
 
@@ -177,25 +175,44 @@ void ScreenAddHive::startRfidScan() {
     _scanError = false;
     memset(_scannedTag, 0, sizeof(_scannedTag));
     memset(_errorMessage, 0, sizeof(_errorMessage));
+
+    // Clear any previous tag detection and start scanning
+    if (_hal->rfid.isReady()) {
+        _hal->rfid.clearLastTag();
+        _hal->rfid.startScanning();
+    }
 }
 
 void ScreenAddHive::simulateRfidScan() {
-    // Generate mock RFID tag for testing
-    uint32_t mockId = static_cast<uint32_t>(esp_timer_get_time() & 0xFFFFFFFF);
-    snprintf(_scannedTag, sizeof(_scannedTag), "%08lX%08lX",
-             static_cast<unsigned long>(mockId),
-             static_cast<unsigned long>(mockId ^ 0x5A5A5A5A));
-
-    if (isRfidUnique(_scannedTag, true, true)) {
-        _scanSuccess = true;
-        _scanError = false;
-    } else {
+    // Check if a tag was detected (non-blocking)
+    if (!_hal->rfid.isReady()) {
         _scanSuccess = false;
         _scanError = true;
-        strcpy(_errorMessage, "Tag already in use");
+        strcpy(_errorMessage, "RFID not ready");
+        _scanning = false;
+        return;
     }
 
-    _scanning = false;
+    // Check if tag was detected
+    if (_hal->rfid.wasTagDetected()) {
+        char tagBuffer[20] = {0};
+        if (_hal->rfid.getLastTagString(tagBuffer, sizeof(tagBuffer))) {
+            strncpy(_scannedTag, tagBuffer, RFID_TAG_LENGTH);
+            _scannedTag[RFID_TAG_LENGTH] = '\0';
+
+            if (isRfidUnique(_scannedTag, true, true)) {
+                _scanSuccess = true;
+                _scanError = false;
+                _hal->buzz.tone(2000, 100);  // Success beep
+            } else {
+                _scanSuccess = false;
+                _scanError = true;
+                strcpy(_errorMessage, "Tag already in use");
+            }
+            _scanning = false;
+        }
+    }
+    // If no tag detected yet, keep scanning
 }
 
 bool ScreenAddHive::createHive() {
@@ -222,7 +239,7 @@ bool ScreenAddHive::createHive() {
 void ScreenAddHive::onRotate(int direction) {
     switch (_currentStep) {
         case AddHiveStep::NUMBER:
-            _context->newHiveNumber = adjustDigit(_context->newHiveNumber, _currentDigit, direction);
+            _context->newHiveNumber = adjustCounter(_context->newHiveNumber, direction, 1, MAX_HIVE_NUMBER);
             _numberValid = true;
             break;
 
@@ -261,19 +278,13 @@ NavigationResult ScreenAddHive::onConfirm() {
 
     switch (_currentStep) {
         case AddHiveStep::NUMBER:
-            _currentDigit++;
-            if (_currentDigit >= NUM_DIGITS) {
-                if (validateNumber()) {
-                    _currentStep = AddHiveStep::ORIGIN;
-                    loadOriginOptions();
-                    _currentDigit = 0;
-                    buzzConfirm();
-                } else {
-                    _currentDigit = 0;
-                    buzzError();
-                }
+            // Validate and move to origin step
+            if (validateNumber()) {
+                _currentStep = AddHiveStep::ORIGIN;
+                loadOriginOptions();
+                buzzConfirm();
             } else {
-                buzzNavigate();
+                buzzError();
             }
             render();
             break;
@@ -307,12 +318,14 @@ NavigationResult ScreenAddHive::onConfirm() {
                     render();
                 }
             } else if (_scanError) {
+                // Retry - restart scanning
                 startRfidScan();
-                simulateRfidScan();
                 buzzNavigate();
                 render();
             } else {
-                simulateRfidScan();
+                // Click while scanning = abort, go back to origin
+                _currentStep = AddHiveStep::ORIGIN;
+                buzzNavigate();
                 render();
             }
             break;
@@ -329,17 +342,11 @@ NavigationResult ScreenAddHive::onBack() {
 
     switch (_currentStep) {
         case AddHiveStep::NUMBER:
-            if (_currentDigit > 0) {
-                _currentDigit--;
-                render();
-            } else {
-                result.nextScreen = ScreenType::HIVE_MGMT;
-            }
+            result.nextScreen = ScreenType::HIVE_MGMT;
             break;
 
         case AddHiveStep::ORIGIN:
             _currentStep = AddHiveStep::NUMBER;
-            _currentDigit = NUM_DIGITS - 1;
             render();
             break;
 
@@ -351,6 +358,34 @@ NavigationResult ScreenAddHive::onBack() {
         default:
             result.nextScreen = ScreenType::HIVE_MGMT;
             break;
+    }
+
+    return result;
+}
+
+NavigationResult ScreenAddHive::onUpdate() {
+    NavigationResult result;
+
+    // Only poll for RFID when on the RFID scan step and actively scanning
+    if (_currentStep == AddHiveStep::RFID_SCAN && _scanning && !_scanSuccess && !_scanError) {
+        simulateRfidScan();
+
+        if (_scanSuccess || _scanError) {
+            render();
+
+            if (_scanSuccess) {
+                if (createHive()) {
+                    buzzSuccess();
+                    result.nextScreen = ScreenType::YARD_SUMMARY;
+                } else {
+                    _scanError = true;
+                    strcpy(_errorMessage, "Save failed");
+                    _scanSuccess = false;
+                    buzzError();
+                    render();
+                }
+            }
+        }
     }
 
     return result;

@@ -30,18 +30,22 @@ static void tone_task(void*){
       case TONE_START:
         log_d("Task received from queue TONE_START: pin=%d, frequency=%u Hz, duration=%lu ms", tone_msg.pin, tone_msg.frequency, tone_msg.duration);
 
-        if (_pin == -1) {
-          if (ledcAttach(tone_msg.pin, tone_msg.frequency, 10) == 0) {
-              log_e("Tone start failed");
-              break;
-          }
-          _pin = tone_msg.pin;
+        // Always detach and reattach to avoid LEDC timer clock conflicts when changing frequency
+        if (_pin != -1) {
+          ledcDetach(_pin);
+          _pin = -1;
         }
-        ledcWriteTone(tone_msg.pin, tone_msg.frequency);
+
+        if (ledcAttach(tone_msg.pin, tone_msg.frequency, 10) == 0) {
+            log_e("Tone start failed");
+            break;
+        }
+        _pin = tone_msg.pin;
+        ledcWrite(tone_msg.pin, 512);  // 50% duty cycle for tone
 
         if(tone_msg.duration){
           delay(tone_msg.duration);
-          ledcWriteTone(tone_msg.pin, 0);
+          ledcWrite(tone_msg.pin, 0);
         }
         break;
 

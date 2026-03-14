@@ -9,10 +9,11 @@
 
 namespace BEEHIVE_INSPECTION {
 
-ScreenBase::ScreenBase(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, uint8_t screenIndex)
+ScreenBase::ScreenBase(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, InspectionContext* context, uint8_t screenIndex)
     : _hal(hal)
     , _canvas(canvas)
     , _data(data)
+    , _context(context)
     , _screenIndex(screenIndex)
     , _themeColor(COLOR_SELECTED)
 {
@@ -29,6 +30,14 @@ void ScreenBase::drawHeader(const char* title) {
     _canvas->setTextDatum(textdatum_t::top_center);
     // Position header within visible circular area (starts around y=30 for 226px visible diameter)
     _canvas->drawString(title, DISPLAY_CENTER_X, CONTENT_TOP);
+}
+
+void ScreenBase::drawSubheader(const char* text) {
+    _canvas->setTextColor(COLOR_TEXT_SECONDARY);
+    _canvas->setTextSize(1);
+    _canvas->setFont(&fonts::FreeSans9pt7b);
+    _canvas->setTextDatum(textdatum_t::top_center);
+    _canvas->drawString(text, DISPLAY_CENTER_X, CONTENT_TOP + 28);
 }
 
 void ScreenBase::drawProgressIndicator() {
@@ -113,17 +122,20 @@ void ScreenBase::pushToDisplay() {
 }
 
 void ScreenBase::buzzConfirm() {
+    // Use consistent frequency to avoid LEDC clock source conflicts
     _hal->buzz.tone(2000, 30);
 }
 
 void ScreenBase::buzzNavigate() {
-    _hal->buzz.tone(4000, 15);
+    // Use same frequency as confirm, shorter duration for different feel
+    _hal->buzz.tone(2000, 15);
 }
 
 void ScreenBase::buzzError() {
-    _hal->buzz.tone(1000, 50);
+    // Use same frequency, double beep pattern for error
+    _hal->buzz.tone(2000, 50);
     vTaskDelay(pdMS_TO_TICKS(60));
-    _hal->buzz.tone(1000, 50);
+    _hal->buzz.tone(2000, 50);
 }
 
 } // namespace BEEHIVE_INSPECTION

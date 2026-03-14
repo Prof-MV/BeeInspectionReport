@@ -72,24 +72,16 @@ namespace HAL
     void HAL::_encoder_moved_callback(ESP32Encoder* encoder, void* userData)
     {
         int new_shit = static_cast<int>(encoder->getCount()) / 2;
-        if (new_shit < _last_count)
-        {
-            // printf("???\n");
-            ((HAL*)userData)->buzz.tone(7000, 20);
-            _last_count = new_shit;
-        }
-        else
-        {
-            // printf("666\n");
-            ((HAL*)userData)->buzz.tone(6000, 20);
-            _last_count = new_shit;
-        }
+        // Encoder feedback tones disabled to avoid LEDC timer conflicts
+        // Apps can provide their own feedback via buzzNavigate() calls
+        _last_count = new_shit;
     }
 
     void HAL::_encoder_button_pressed_callback(Button* button, void* userData)
     {
-        // printf("114514\n");
-        ((HAL*)userData)->buzz.tone(2000, 20);
+        // Button feedback tone disabled - apps provide their own feedback
+        (void)button;
+        (void)userData;
     }
 
     void HAL::_encoder_init()
@@ -145,6 +137,11 @@ namespace HAL
 #if LVGL_ENABLE
         lvgl.init(&display, &encoder, &tp);
 #endif
+
+        /* Init RFID reader (uses I2C_NUM_0, same bus as touchscreen) */
+        if (!rfid.init(I2C_NUM_0)) {
+            ESP_LOGW(TAG, "RFID reader not detected - may not be connected");
+        }
 
         // _encoder_init();
     }

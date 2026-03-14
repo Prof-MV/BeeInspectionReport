@@ -29,8 +29,8 @@ PestFlag ScreenPests::getPestFlag(int index) {
     }
 }
 
-ScreenPests::ScreenPests(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data)
-    : ScreenBase(hal, canvas, data, SCREEN_PESTS)
+ScreenPests::ScreenPests(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, InspectionContext* context)
+    : ScreenBase(hal, canvas, data, context, SCREEN_PESTS)
     , _focusedIndex(0)
 {
 }

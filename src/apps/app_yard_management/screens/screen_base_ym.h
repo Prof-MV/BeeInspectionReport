@@ -22,11 +22,13 @@ enum class ScreenType {
     HIVE_MGMT,
     ADD_HIVE,
     CLOSE_HIVE,
+    SELECT_HIVE,
+    CLEAR_DATA,
     NONE  // For back to launcher
 };
 
 // Screen indices
-constexpr int SCREEN_COUNT = 8;
+constexpr int SCREEN_COUNT = 10;
 
 // Circular display constraints (same as beehive inspection)
 constexpr int DISPLAY_WIDTH = 240;
@@ -91,6 +93,7 @@ struct AppContext {
 struct NavigationResult {
     ScreenType nextScreen = ScreenType::NONE;
     bool exitApp = false;
+    bool launchInspection = false;  // Launch beehive inspection app with selected hive
 };
 
 // Base class for all yard management screens
@@ -106,9 +109,13 @@ protected:
     void drawHeader(const char* title);
     void drawSubheader(const char* text);
 
-    // 6-digit number input widget
+    // 6-digit number input widget (legacy digit-by-digit)
     void drawSixDigitInput(uint32_t value, int highlightDigit, int y = 100);
     uint32_t adjustDigit(uint32_t value, int digitIndex, int direction);
+
+    // Counter-style number input (simple increment/decrement)
+    void drawCounterInput(uint32_t value, uint32_t minValue, uint32_t maxValue, int y = 100);
+    uint32_t adjustCounter(uint32_t value, int direction, uint32_t minValue, uint32_t maxValue);
 
     // List selection widget
     void drawListItem(const char* text, int y, bool selected, bool isManagement = false);
@@ -155,6 +162,9 @@ public:
     virtual void onRotate(int direction) = 0;     // direction: -1 or +1
     virtual NavigationResult onConfirm() = 0;     // Single click
     virtual NavigationResult onBack() = 0;        // Double click
+
+    // Called regularly to check for async events (e.g., RFID detection)
+    virtual NavigationResult onUpdate() { return NavigationResult(); }
 
     // Set theme color
     void setThemeColor(uint32_t color) { _themeColor = color; }

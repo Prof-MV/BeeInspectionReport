@@ -20,8 +20,8 @@ const char* ScreenSupers::getFillName(int index) {
     }
 }
 
-ScreenSupers::ScreenSupers(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data)
-    : ScreenBase(hal, canvas, data, SCREEN_SUPERS)
+ScreenSupers::ScreenSupers(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, InspectionContext* context)
+    : ScreenBase(hal, canvas, data, context, SCREEN_SUPERS)
     , _state(SupersState::COUNT_SELECT)
     , _count(0)
     , _currentSuper(0)

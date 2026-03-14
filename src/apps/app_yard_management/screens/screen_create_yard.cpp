@@ -16,7 +16,6 @@ namespace YARD_MANAGEMENT {
 ScreenCreateYard::ScreenCreateYard(HAL::HAL* hal, LGFX_Sprite* canvas, AppContext* context)
     : ScreenBaseYM(hal, canvas, context)
     , _currentStep(CreateYardStep::NUMBER)
-    , _currentDigit(0)
     , _cursorPos(0)
     , _selectedChar('A')
     , _scanning(false)
@@ -31,14 +30,13 @@ ScreenCreateYard::ScreenCreateYard(HAL::HAL* hal, LGFX_Sprite* canvas, AppContex
 
 void ScreenCreateYard::onEnter() {
     _currentStep = CreateYardStep::NUMBER;
-    _currentDigit = 0;
     _cursorPos = 0;
     _selectedChar = 'A';
     _scanning = false;
     _scanSuccess = false;
     _scanError = false;
     _numberValid = true;
-    _context->newYardNumber = MIN_YARD_NUMBER;
+    _context->newYardNumber = 1;  // Start from 1 for counter-style input
     memset(_nickname, 0, sizeof(_nickname));
     memset(_scannedTag, 0, sizeof(_scannedTag));
 
@@ -72,27 +70,21 @@ void ScreenCreateYard::render() {
 
 void ScreenCreateYard::renderNumberStep() {
     drawHeader("CREATE YARD");
-    drawSubheader("Enter 6-digit number");
+    drawSubheader("Enter yard number");
 
-    drawSixDigitInput(_context->newYardNumber, _currentDigit, 85);
+    drawCounterInput(_context->newYardNumber, 1, MAX_YARD_NUMBER, 80);
 
     // Show validation status
     _canvas->setFont(&fonts::FreeSans9pt7b);
-    _canvas->setTextDatum(textdatum_t::top_center);
+    _canvas->setTextDatum(textdatum_t::bottom_center);
 
     if (!_numberValid) {
         _canvas->setTextColor(COLOR_ERROR);
-        _canvas->drawString("Number exists!", DISPLAY_CENTER_X, 150);
-    } else {
-        _canvas->setTextColor(COLOR_TEXT_SECONDARY);
-        _canvas->drawString("Click to advance digit", DISPLAY_CENTER_X, 150);
+        _canvas->drawString("Number exists!", DISPLAY_CENTER_X, CONTENT_BOTTOM - 20);
     }
 
-    // Show navigation hints
-    _canvas->setFont(&fonts::FreeSans9pt7b);
     _canvas->setTextColor(COLOR_TEXT_SECONDARY);
-    _canvas->setTextDatum(textdatum_t::bottom_center);
-    _canvas->drawString("Dbl-click: Back", DISPLAY_CENTER_X, CONTENT_BOTTOM);
+    _canvas->drawString("Click: Confirm", DISPLAY_CENTER_X, CONTENT_BOTTOM);
 }
 
 void ScreenCreateYard::renderNicknameStep() {
@@ -108,7 +100,11 @@ void ScreenCreateYard::renderNicknameStep() {
     _canvas->setFont(&fonts::FreeSans9pt7b);
     _canvas->setTextColor(COLOR_TEXT_SECONDARY);
     _canvas->setTextDatum(textdatum_t::bottom_center);
-    _canvas->drawString("Long-click: Done", DISPLAY_CENTER_X, CONTENT_BOTTOM);
+    if (strlen(_nickname) > 0) {
+        _canvas->drawString("Hold: Next step", DISPLAY_CENTER_X, CONTENT_BOTTOM);
+    } else {
+        _canvas->drawString("Hold: Back", DISPLAY_CENTER_X, CONTENT_BOTTOM);
+    }
 }
 
 void ScreenCreateYard::renderRfidStep() {
@@ -125,7 +121,7 @@ void ScreenCreateYard::renderRfidStep() {
         _canvas->setFont(&fonts::FreeSans9pt7b);
         _canvas->setTextColor(COLOR_SUCCESS);
         _canvas->setTextDatum(textdatum_t::bottom_center);
-        _canvas->drawString("Click to save", DISPLAY_CENTER_X, CONTENT_BOTTOM);
+        _canvas->drawString("Click: Save yard", DISPLAY_CENTER_X, CONTENT_BOTTOM);
     } else if (_scanError) {
         drawRfidError(_errorMessage);
 
@@ -139,7 +135,7 @@ void ScreenCreateYard::renderRfidStep() {
         _canvas->setFont(&fonts::FreeSans9pt7b);
         _canvas->setTextColor(COLOR_TEXT_SECONDARY);
         _canvas->setTextDatum(textdatum_t::bottom_center);
-        _canvas->drawString("Present tag to reader", DISPLAY_CENTER_X, CONTENT_BOTTOM);
+        _canvas->drawString("Click to cancel", DISPLAY_CENTER_X, CONTENT_BOTTOM);
     }
 }
 
@@ -154,27 +150,47 @@ void ScreenCreateYard::startRfidScan() {
     _scanError = false;
     memset(_scannedTag, 0, sizeof(_scannedTag));
     memset(_errorMessage, 0, sizeof(_errorMessage));
+
+    // Clear any previous tag detection and start scanning
+    if (_hal->rfid.isReady()) {
+        _hal->rfid.clearLastTag();
+        _hal->rfid.startScanning();
+    }
 }
 
 void ScreenCreateYard::simulateRfidScan() {
-    // Generate a mock RFID tag for testing
-    // In production, this would read from actual RFID hardware
-    uint32_t mockId = static_cast<uint32_t>(esp_timer_get_time() & 0xFFFFFFFF);
-    snprintf(_scannedTag, sizeof(_scannedTag), "%08lX%08lX",
-             static_cast<unsigned long>(mockId),
-             static_cast<unsigned long>(mockId ^ 0xA5A5A5A5));
-
-    // Check uniqueness
-    if (isRfidUnique(_scannedTag, true, true)) {
-        _scanSuccess = true;
-        _scanError = false;
-    } else {
+    // Check if a tag was detected (non-blocking)
+    if (!_hal->rfid.isReady()) {
         _scanSuccess = false;
         _scanError = true;
-        strcpy(_errorMessage, "Tag already in use");
+        strcpy(_errorMessage, "RFID not ready");
+        _scanning = false;
+        return;
     }
 
-    _scanning = false;
+    // Check if tag was detected
+    if (_hal->rfid.wasTagDetected()) {
+        // Get the tag serial as hex string
+        char tagBuffer[20] = {0};
+        if (_hal->rfid.getLastTagString(tagBuffer, sizeof(tagBuffer))) {
+            // Copy to scannedTag (truncate to RFID_TAG_LENGTH if needed)
+            strncpy(_scannedTag, tagBuffer, RFID_TAG_LENGTH);
+            _scannedTag[RFID_TAG_LENGTH] = '\0';
+
+            // Check uniqueness
+            if (isRfidUnique(_scannedTag, true, true)) {
+                _scanSuccess = true;
+                _scanError = false;
+                _hal->buzz.tone(2000, 100);  // Success beep
+            } else {
+                _scanSuccess = false;
+                _scanError = true;
+                strcpy(_errorMessage, "Tag already in use");
+            }
+            _scanning = false;
+        }
+    }
+    // If no tag detected yet, keep scanning (don't change state)
 }
 
 bool ScreenCreateYard::createYard() {
@@ -193,7 +209,7 @@ bool ScreenCreateYard::createYard() {
 void ScreenCreateYard::onRotate(int direction) {
     switch (_currentStep) {
         case CreateYardStep::NUMBER:
-            _context->newYardNumber = adjustDigit(_context->newYardNumber, _currentDigit, direction);
+            _context->newYardNumber = adjustCounter(_context->newYardNumber, direction, 1, MAX_YARD_NUMBER);
             _numberValid = true;  // Reset validation on change
             break;
 
@@ -218,20 +234,12 @@ NavigationResult ScreenCreateYard::onConfirm() {
 
     switch (_currentStep) {
         case CreateYardStep::NUMBER:
-            // Move to next digit
-            _currentDigit++;
-            if (_currentDigit >= NUM_DIGITS) {
-                // All digits entered, validate and move to nickname
-                if (validateNumber()) {
-                    _currentStep = CreateYardStep::NICKNAME;
-                    _currentDigit = 0;
-                    buzzConfirm();
-                } else {
-                    _currentDigit = 0;  // Reset to first digit
-                    buzzError();
-                }
+            // Validate and move to nickname step
+            if (validateNumber()) {
+                _currentStep = CreateYardStep::NICKNAME;
+                buzzConfirm();
             } else {
-                buzzNavigate();
+                buzzError();
             }
             render();
             break;
@@ -263,14 +271,15 @@ NavigationResult ScreenCreateYard::onConfirm() {
                     render();
                 }
             } else if (_scanError) {
-                // Retry scan
+                // Retry - restart scanning
                 startRfidScan();
-                simulateRfidScan();  // Replace with real scan
                 buzzNavigate();
                 render();
             } else {
-                // Start/continue scan
-                simulateRfidScan();  // Replace with real scan
+                // Click while scanning = abort, go back to nickname
+                _currentStep = CreateYardStep::NICKNAME;
+                _cursorPos = strlen(_nickname);
+                buzzNavigate();
                 render();
             }
             break;
@@ -287,31 +296,21 @@ NavigationResult ScreenCreateYard::onBack() {
 
     switch (_currentStep) {
         case CreateYardStep::NUMBER:
-            if (_currentDigit > 0) {
-                _currentDigit--;
-                render();
-            } else {
-                result.nextScreen = ScreenType::MGMT_MENU;
-            }
+            result.nextScreen = ScreenType::MGMT_MENU;
             break;
 
         case CreateYardStep::NICKNAME:
-            if (_cursorPos > 0) {
-                // Delete last character
-                _cursorPos--;
-                _nickname[_cursorPos] = '\0';
-                render();
-            } else if (strlen(_nickname) > 0) {
-                // Nickname entered, move to RFID
+            if (strlen(_nickname) > 0) {
+                // Nickname has content, move to RFID step
                 _context->yardNickname[0] = '\0';
                 strncpy(_context->yardNickname, _nickname, MAX_NICKNAME_LENGTH);
                 _currentStep = CreateYardStep::RFID_SCAN;
                 startRfidScan();
+                buzzConfirm();
                 render();
             } else {
-                // Go back to number step
+                // No nickname entered, go back to number step
                 _currentStep = CreateYardStep::NUMBER;
-                _currentDigit = NUM_DIGITS - 1;
                 render();
             }
             break;
@@ -326,6 +325,37 @@ NavigationResult ScreenCreateYard::onBack() {
         default:
             result.nextScreen = ScreenType::MGMT_MENU;
             break;
+    }
+
+    return result;
+}
+
+NavigationResult ScreenCreateYard::onUpdate() {
+    NavigationResult result;
+
+    // Only poll for RFID when on the RFID scan step and actively scanning
+    if (_currentStep == CreateYardStep::RFID_SCAN && _scanning && !_scanSuccess && !_scanError) {
+        // Check for tag detection
+        simulateRfidScan();
+
+        // If scan completed (success or error), re-render
+        if (_scanSuccess || _scanError) {
+            render();
+
+            // If success, auto-advance to save the yard
+            if (_scanSuccess) {
+                if (createYard()) {
+                    buzzSuccess();
+                    result.nextScreen = ScreenType::YARD_LIST;
+                } else {
+                    _scanError = true;
+                    strcpy(_errorMessage, "Save failed");
+                    _scanSuccess = false;
+                    buzzError();
+                    render();
+                }
+            }
+        }
     }
 
     return result;

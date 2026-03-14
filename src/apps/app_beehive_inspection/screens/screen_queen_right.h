@@ -14,7 +14,7 @@ private:
     bool _selection;  // true = Yes, false = No
 
 public:
-    ScreenQueenRight(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data);
+    ScreenQueenRight(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, InspectionContext* context);
 
     void onEnter() override;
     void onExit() override;

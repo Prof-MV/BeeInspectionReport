@@ -90,11 +90,17 @@ void ScreenCloseYard::renderSelectStep() {
         _canvas->drawString("No active yards", DISPLAY_CENTER_X, 120);
 
         _canvas->setTextDatum(textdatum_t::bottom_center);
-        _canvas->drawString("Dbl-click: Back", DISPLAY_CENTER_X, CONTENT_BOTTOM);
+        _canvas->drawString("Hold: Back", DISPLAY_CENTER_X, CONTENT_BOTTOM);
     } else {
         drawSubheader("Select yard to close");
         drawScrollableList(_displayItems.data(), static_cast<int>(_displayItems.size()),
                           _selectedIndex, _scrollOffset, 75);
+
+        // Navigation hint
+        _canvas->setFont(&fonts::FreeSans9pt7b);
+        _canvas->setTextColor(COLOR_TEXT_SECONDARY);
+        _canvas->setTextDatum(textdatum_t::bottom_center);
+        _canvas->drawString("Hold: Back", DISPLAY_CENTER_X, CONTENT_BOTTOM);
     }
 }
 

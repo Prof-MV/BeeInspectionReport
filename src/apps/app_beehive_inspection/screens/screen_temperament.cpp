@@ -20,8 +20,8 @@ const char* ScreenTemperament::getOptionName(int index) {
     }
 }
 
-ScreenTemperament::ScreenTemperament(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data)
-    : ScreenBase(hal, canvas, data, SCREEN_TEMPERAMENT)
+ScreenTemperament::ScreenTemperament(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, InspectionContext* context)
+    : ScreenBase(hal, canvas, data, context, SCREEN_TEMPERAMENT)
     , _selectedIndex(0)
 {
 }

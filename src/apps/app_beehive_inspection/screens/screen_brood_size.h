@@ -14,7 +14,7 @@ private:
     int _frames;
 
 public:
-    ScreenBroodSize(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data);
+    ScreenBroodSize(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, InspectionContext* context);
 
     void onEnter() override;
     void onExit() override;

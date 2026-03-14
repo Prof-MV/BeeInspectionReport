@@ -29,8 +29,8 @@ const char* ScreenQueenCells::getCountName(int index) {
     }
 }
 
-ScreenQueenCells::ScreenQueenCells(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data)
-    : ScreenBase(hal, canvas, data, SCREEN_QUEEN_CELLS)
+ScreenQueenCells::ScreenQueenCells(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, InspectionContext* context)
+    : ScreenBase(hal, canvas, data, context, SCREEN_QUEEN_CELLS)
     , _state(QueenCellsState::TYPE_SELECT)
     , _typeIndex(0)
     , _countIndex(0)

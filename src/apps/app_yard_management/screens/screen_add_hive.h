@@ -22,9 +22,6 @@ class ScreenAddHive : public ScreenBaseYM {
 private:
     AddHiveStep _currentStep;
 
-    // Number input state
-    int _currentDigit;
-
     // Origin selection state
     std::vector<uint32_t> _originHives;
     std::vector<const char*> _originOptions;
@@ -64,6 +61,7 @@ public:
     void onRotate(int direction) override;
     NavigationResult onConfirm() override;
     NavigationResult onBack() override;
+    NavigationResult onUpdate() override;  // For RFID auto-detection
 };
 
 } // namespace YARD_MANAGEMENT

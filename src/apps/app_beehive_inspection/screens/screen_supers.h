@@ -36,7 +36,7 @@ private:
     static const char* getFillName(int index);
 
 public:
-    ScreenSupers(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data);
+    ScreenSupers(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, InspectionContext* context);
 
     void onEnter() override;
     void onExit() override;

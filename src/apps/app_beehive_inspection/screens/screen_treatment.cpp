@@ -20,8 +20,8 @@ const char* ScreenTreatment::getOptionName(int index) {
     }
 }
 
-ScreenTreatment::ScreenTreatment(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data)
-    : ScreenBase(hal, canvas, data, SCREEN_TREATMENT)
+ScreenTreatment::ScreenTreatment(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, InspectionContext* context)
+    : ScreenBase(hal, canvas, data, context, SCREEN_TREATMENT)
     , _selectedIndex(0)
 {
 }

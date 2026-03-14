@@ -17,7 +17,7 @@ private:
     static const char* getOptionName(int index);
 
 public:
-    ScreenTreatment(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data);
+    ScreenTreatment(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, InspectionContext* context);
 
     void onEnter() override;
     void onExit() override;

@@ -20,9 +20,6 @@ class ScreenCreateYard : public ScreenBaseYM {
 private:
     CreateYardStep _currentStep;
 
-    // Number input state
-    int _currentDigit;
-
     // Nickname input state
     int _cursorPos;
     char _selectedChar;
@@ -58,6 +55,7 @@ public:
     void onRotate(int direction) override;
     NavigationResult onConfirm() override;
     NavigationResult onBack() override;
+    NavigationResult onUpdate() override;  // For RFID auto-detection
 };
 
 } // namespace YARD_MANAGEMENT

@@ -57,10 +57,13 @@ NavigationResult ScreenHiveMgmt::onConfirm() {
     NavigationResult result;
 
     switch (_selectedIndex) {
-        case 0:  // Add Hive
+        case 0:  // Select Hive (for inspection)
+            result.nextScreen = ScreenType::SELECT_HIVE;
+            break;
+        case 1:  // Add Hive
             result.nextScreen = ScreenType::ADD_HIVE;
             break;
-        case 1:  // Close Hive
+        case 2:  // Close Hive
             result.nextScreen = ScreenType::CLOSE_HIVE;
             break;
     }

@@ -17,6 +17,8 @@
 #include "screens/screen_hive_mgmt.h"
 #include "screens/screen_add_hive.h"
 #include "screens/screen_close_hive.h"
+#include "screens/screen_select_hive.h"
+#include "screens/screen_clear_data.h"
 
 using namespace MOONCAKE::USER_APP;
 using namespace YARD_MANAGEMENT;
@@ -50,6 +52,19 @@ void YardManagement::onCreate() {
 void YardManagement::onRunning() {
     handleEncoder();
     handleButton();
+    handleScreenUpdate();
+}
+
+void YardManagement::handleScreenUpdate() {
+    if (_currentScreenPtr) {
+        NavigationResult result = _currentScreenPtr->onUpdate();
+
+        if (result.exitApp) {
+            destroyApp();
+        } else if (result.nextScreen != ScreenType::NONE) {
+            transitionToScreen(result.nextScreen);
+        }
+    }
 }
 
 void YardManagement::onDestroy() {
@@ -84,6 +99,12 @@ ScreenBaseYM* YardManagement::createScreen(ScreenType type) {
 
         case ScreenType::CLOSE_HIVE:
             return new ScreenCloseHive(_data.hal, canvas, &_context);
+
+        case ScreenType::SELECT_HIVE:
+            return new ScreenSelectHive(_data.hal, canvas, &_context);
+
+        case ScreenType::CLEAR_DATA:
+            return new ScreenClearData(_data.hal, canvas, &_context);
 
         default:
             return nullptr;
@@ -138,75 +159,80 @@ void YardManagement::handleButton() {
             // Button just pressed
             _data.buttonPressStart = now;
             _data.isLongPressHandled = false;
-            _data.waitingForDoubleClick = false;
+            _data.isBackHandled = false;
         }
 
-        // Check for long press (>800ms)
         uint32_t pressDuration = now - _data.buttonPressStart;
-        if (pressDuration > YARD_MANAGEMENT_NS::LONG_PRESS_MS && !_data.isLongPressHandled) {
+
+        // Check for very long press (>1500ms) - exit app
+        if (pressDuration > YARD_MANAGEMENT_NS::EXIT_PRESS_MS && !_data.isLongPressHandled) {
             _data.isLongPressHandled = true;
             saveAndExit();
             return;
         }
 
+        // Check for medium press (>600ms) - go back
+        if (pressDuration > YARD_MANAGEMENT_NS::BACK_PRESS_MS && !_data.isBackHandled) {
+            _data.isBackHandled = true;
+
+            // Trigger back action
+            if (_currentScreenPtr) {
+                NavigationResult result = _currentScreenPtr->onBack();
+
+                if (result.exitApp) {
+                    destroyApp();
+                    return;
+                } else if (result.nextScreen != ScreenType::NONE) {
+                    transitionToScreen(result.nextScreen);
+                } else {
+                    // Back handled within screen, redraw
+                    _currentScreenPtr->render();
+                }
+            }
+
+            // Feedback beep for back action (use consistent frequency)
+            _data.hal->buzz.tone(2000, 50);
+        }
+
         // Show long press progress indicator
-        if (pressDuration > 100 && !_data.isLongPressHandled) {
-            float progress = (float)(pressDuration - 100) / (YARD_MANAGEMENT_NS::LONG_PRESS_MS - 100);
-            if (progress > 1.0f) progress = 1.0f;
-            drawLongPressProgress(progress);
+        if (pressDuration > 100) {
+            // Show progress toward back action (0-100% during 100ms to 600ms)
+            // Then show progress toward exit (100% at 600ms, filling second ring to 1500ms)
+            if (pressDuration < YARD_MANAGEMENT_NS::BACK_PRESS_MS) {
+                float progress = (float)(pressDuration - 100) / (YARD_MANAGEMENT_NS::BACK_PRESS_MS - 100);
+                if (progress > 1.0f) progress = 1.0f;
+                drawLongPressProgress(progress, false);  // Back progress (orange)
+            } else if (!_data.isLongPressHandled) {
+                float progress = (float)(pressDuration - YARD_MANAGEMENT_NS::BACK_PRESS_MS) /
+                                (YARD_MANAGEMENT_NS::EXIT_PRESS_MS - YARD_MANAGEMENT_NS::BACK_PRESS_MS);
+                if (progress > 1.0f) progress = 1.0f;
+                drawLongPressProgress(progress, true);   // Exit progress (green)
+            }
         }
     } else {
         // Button released
         if (_data.buttonPressStart > 0) {
             uint32_t pressDuration = now - _data.buttonPressStart;
 
-            if (pressDuration < YARD_MANAGEMENT_NS::LONG_PRESS_MS && !_data.isLongPressHandled) {
-                // Short press detected
-                if (_data.waitingForDoubleClick &&
-                    (now - _data.lastReleaseTime) < YARD_MANAGEMENT_NS::DOUBLE_CLICK_WINDOW_MS) {
-                    // Double click detected
-                    _data.waitingForDoubleClick = false;
+            // Short press (< 600ms) - confirm/select action
+            if (pressDuration < YARD_MANAGEMENT_NS::BACK_PRESS_MS && !_data.isBackHandled) {
+                if (_currentScreenPtr) {
+                    NavigationResult result = _currentScreenPtr->onConfirm();
 
-                    if (_currentScreenPtr) {
-                        NavigationResult result = _currentScreenPtr->onBack();
-
-                        if (result.exitApp) {
-                            destroyApp();
-                            return;
-                        } else if (result.nextScreen != ScreenType::NONE) {
-                            transitionToScreen(result.nextScreen);
-                        }
+                    if (result.exitApp) {
+                        destroyApp();
+                        return;
+                    } else if (result.nextScreen != ScreenType::NONE) {
+                        transitionToScreen(result.nextScreen);
                     }
-                } else {
-                    // First click - wait for potential double click
-                    _data.waitingForDoubleClick = true;
-                    _data.lastReleaseTime = now;
                 }
             }
 
             _data.buttonPressStart = 0;
 
             // Redraw screen to remove long press indicator
-            if (_currentScreenPtr) {
+            if (_currentScreenPtr && !_data.isLongPressHandled) {
                 _currentScreenPtr->render();
-            }
-        }
-    }
-
-    // Handle single click timeout (no double click came)
-    if (_data.waitingForDoubleClick &&
-        (now - _data.lastReleaseTime) > YARD_MANAGEMENT_NS::DOUBLE_CLICK_WINDOW_MS) {
-        _data.waitingForDoubleClick = false;
-
-        // Single click - confirm action
-        if (_currentScreenPtr) {
-            NavigationResult result = _currentScreenPtr->onConfirm();
-
-            if (result.exitApp) {
-                destroyApp();
-                return;
-            } else if (result.nextScreen != ScreenType::NONE) {
-                transitionToScreen(result.nextScreen);
             }
         }
     }
@@ -220,15 +246,15 @@ void YardManagement::saveAndExit() {
         _currentScreenPtr->onExit();
     }
 
-    // Double beep to confirm
+    // Double beep to confirm (use consistent frequency)
     _data.hal->buzz.tone(2000, 100);
     delay(50);
-    _data.hal->buzz.tone(2500, 100);
+    _data.hal->buzz.tone(2000, 150);
 
     destroyApp();
 }
 
-void YardManagement::drawLongPressProgress(float progress) {
+void YardManagement::drawLongPressProgress(float progress, bool isExit) {
     LGFX_Sprite* canvas = _gui.getCanvas();
 
     // Draw a progress arc around the edge of the visible circular display area
@@ -240,12 +266,27 @@ void YardManagement::drawLongPressProgress(float progress) {
     // Calculate arc angle based on progress
     int endAngle = (int)(progress * 360);
 
-    // Draw arc
+    // Use orange for back progress, green for exit progress
+    uint16_t color = isExit ? COLOR_SUCCESS : COLOR_SELECTED;
+
+    // If showing exit progress, first draw the completed back ring
+    if (isExit) {
+        for (int angle = 0; angle < 360; angle += 3) {
+            float rad = angle * 3.14159f / 180.0f;
+            int x = centerX + (int)(radius * sin(rad));
+            int y = centerY - (int)(radius * cos(rad));
+            canvas->fillCircle(x, y, thickness / 2, COLOR_SELECTED);
+        }
+        // Draw exit progress on inner ring
+        radius -= 10;
+    }
+
+    // Draw progress arc
     for (int angle = 0; angle < endAngle; angle += 3) {
         float rad = angle * 3.14159f / 180.0f;
         int x = centerX + (int)(radius * sin(rad));
         int y = centerY - (int)(radius * cos(rad));
-        canvas->fillCircle(x, y, thickness / 2, COLOR_SUCCESS);
+        canvas->fillCircle(x, y, thickness / 2, color);
     }
 
     canvas->pushSprite(0, 0);

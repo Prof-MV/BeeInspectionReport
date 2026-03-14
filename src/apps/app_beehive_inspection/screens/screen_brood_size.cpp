@@ -9,8 +9,8 @@
 
 namespace BEEHIVE_INSPECTION {
 
-ScreenBroodSize::ScreenBroodSize(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data)
-    : ScreenBase(hal, canvas, data, SCREEN_BROOD_SIZE)
+ScreenBroodSize::ScreenBroodSize(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, InspectionContext* context)
+    : ScreenBase(hal, canvas, data, context, SCREEN_BROOD_SIZE)
     , _frames(0)
 {
 }

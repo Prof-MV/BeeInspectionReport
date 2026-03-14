@@ -63,12 +63,14 @@ protected:
     HAL::HAL* _hal;
     LGFX_Sprite* _canvas;
     InspectionRecord* _data;
+    InspectionContext* _context;
     uint8_t _screenIndex;
     uint32_t _themeColor;
 
     // Common drawing helpers
     void drawBackground();
     void drawHeader(const char* title);
+    void drawSubheader(const char* text);  // Shows yard/hive info below header
     void drawProgressIndicator();
     void drawLargeValue(const char* value, int y = 120);
     void drawOption(const char* text, int y, bool selected, bool checked = false);
@@ -81,7 +83,7 @@ protected:
     void buzzError();
 
 public:
-    ScreenBase(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, uint8_t screenIndex);
+    ScreenBase(HAL::HAL* hal, LGFX_Sprite* canvas, InspectionRecord* data, InspectionContext* context, uint8_t screenIndex);
     virtual ~ScreenBase() = default;
 
     // Screen lifecycle

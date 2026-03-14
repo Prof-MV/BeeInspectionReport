@@ -67,6 +67,7 @@ public:
     void onRotate(int direction) override;
     NavigationResult onConfirm() override;
     NavigationResult onBack() override;
+    NavigationResult onUpdate() override;  // For RFID auto-detection
 };
 
 } // namespace YARD_MANAGEMENT

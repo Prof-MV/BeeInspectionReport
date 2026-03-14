@@ -47,6 +47,125 @@ static void makeHiveKey(uint32_t hiveNumber, char* key, size_t keySize) {
     snprintf(key, keySize, "%s%06lu", YM_HIVE_PREFIX, (unsigned long)hiveNumber);
 }
 
+// ==================== Index Management ====================
+// Indexes store lists of yard/hive numbers for fast lookup
+
+static std::vector<uint32_t> loadYardIndex() {
+    std::vector<uint32_t> index;
+    nvs_handle_t handle;
+
+    if (nvs_open(YM_NVS_NAMESPACE, NVS_READONLY, &handle) != ESP_OK) {
+        return index;
+    }
+
+    size_t size = 0;
+    if (nvs_get_blob(handle, YM_YARD_INDEX_KEY, nullptr, &size) == ESP_OK && size > 0) {
+        size_t count = size / sizeof(uint32_t);
+        index.resize(count);
+        nvs_get_blob(handle, YM_YARD_INDEX_KEY, index.data(), &size);
+    }
+
+    nvs_close(handle);
+    return index;
+}
+
+static bool saveYardIndex(const std::vector<uint32_t>& index) {
+    nvs_handle_t handle;
+
+    if (nvs_open(YM_NVS_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK) {
+        return false;
+    }
+
+    esp_err_t err;
+    if (index.empty()) {
+        err = nvs_erase_key(handle, YM_YARD_INDEX_KEY);
+        if (err == ESP_ERR_NVS_NOT_FOUND) err = ESP_OK;
+    } else {
+        err = nvs_set_blob(handle, YM_YARD_INDEX_KEY, index.data(), index.size() * sizeof(uint32_t));
+    }
+
+    if (err == ESP_OK) {
+        err = nvs_commit(handle);
+    }
+
+    nvs_close(handle);
+    return err == ESP_OK;
+}
+
+static bool addToYardIndex(uint32_t yardNumber) {
+    std::vector<uint32_t> index = loadYardIndex();
+
+    for (uint32_t num : index) {
+        if (num == yardNumber) return true;  // Already exists
+    }
+
+    if (index.size() >= MAX_YARDS) {
+        ESP_LOGE(TAG, "Max yards limit reached");
+        return false;
+    }
+
+    index.push_back(yardNumber);
+    return saveYardIndex(index);
+}
+
+static std::vector<uint32_t> loadHiveIndex() {
+    std::vector<uint32_t> index;
+    nvs_handle_t handle;
+
+    if (nvs_open(YM_NVS_NAMESPACE, NVS_READONLY, &handle) != ESP_OK) {
+        return index;
+    }
+
+    size_t size = 0;
+    if (nvs_get_blob(handle, YM_HIVE_INDEX_KEY, nullptr, &size) == ESP_OK && size > 0) {
+        size_t count = size / sizeof(uint32_t);
+        index.resize(count);
+        nvs_get_blob(handle, YM_HIVE_INDEX_KEY, index.data(), &size);
+    }
+
+    nvs_close(handle);
+    return index;
+}
+
+static bool saveHiveIndex(const std::vector<uint32_t>& index) {
+    nvs_handle_t handle;
+
+    if (nvs_open(YM_NVS_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK) {
+        return false;
+    }
+
+    esp_err_t err;
+    if (index.empty()) {
+        err = nvs_erase_key(handle, YM_HIVE_INDEX_KEY);
+        if (err == ESP_ERR_NVS_NOT_FOUND) err = ESP_OK;
+    } else {
+        err = nvs_set_blob(handle, YM_HIVE_INDEX_KEY, index.data(), index.size() * sizeof(uint32_t));
+    }
+
+    if (err == ESP_OK) {
+        err = nvs_commit(handle);
+    }
+
+    nvs_close(handle);
+    return err == ESP_OK;
+}
+
+static bool addToHiveIndex(uint32_t hiveNumber) {
+    std::vector<uint32_t> index = loadHiveIndex();
+
+    for (uint32_t num : index) {
+        if (num == hiveNumber) return true;
+    }
+
+    if (index.size() >= MAX_HIVES) {
+        ESP_LOGE(TAG, "Max hives limit reached");
+        return false;
+    }
+
+    index.push_back(hiveNumber);
+    return saveHiveIndex(index);
+}
+
 // ==================== Yard Operations ====================
 
 bool saveYard(const YardRecord& yard) {
@@ -79,6 +198,11 @@ bool saveYard(const YardRecord& yard) {
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to commit yard %lu: %s", (unsigned long)yard.yardNumber, esp_err_to_name(err));
         return false;
+    }
+
+    // Add to index
+    if (!addToYardIndex(yard.yardNumber)) {
+        ESP_LOGW(TAG, "Failed to add yard %lu to index", (unsigned long)yard.yardNumber);
     }
 
     ESP_LOGI(TAG, "Saved yard %lu", (unsigned long)yard.yardNumber);
@@ -156,26 +280,7 @@ bool deleteYard(uint32_t yardNumber) {
 }
 
 std::vector<uint32_t> getAllYardNumbers() {
-    std::vector<uint32_t> numbers;
-    nvs_handle_t handle;
-
-    if (nvs_open(YM_NVS_NAMESPACE, NVS_READONLY, &handle) != ESP_OK) {
-        return numbers;
-    }
-
-    // Iterate through possible yard numbers
-    // Note: In a production system, you'd maintain an index
-    for (uint32_t num = MIN_YARD_NUMBER; num <= MAX_YARD_NUMBER && numbers.size() < MAX_YARDS; num++) {
-        char key[20];
-        makeYardKey(num, key, sizeof(key));
-
-        size_t size = 0;
-        if (nvs_get_blob(handle, key, nullptr, &size) == ESP_OK && size > 0) {
-            numbers.push_back(num);
-        }
-    }
-
-    nvs_close(handle);
+    std::vector<uint32_t> numbers = loadYardIndex();
     std::sort(numbers.begin(), numbers.end());
     return numbers;
 }
@@ -196,7 +301,38 @@ std::vector<uint32_t> getActiveYardNumbers() {
 
 bool isYardNumberUnique(uint32_t yardNumber) {
     YardRecord yard;
-    return !loadYard(yardNumber, yard);
+    bool dataExists = loadYard(yardNumber, yard);
+
+    // Also check the index
+    std::vector<uint32_t> index = loadYardIndex();
+    bool inIndex = false;
+    for (uint32_t num : index) {
+        if (num == yardNumber) {
+            inIndex = true;
+            break;
+        }
+    }
+
+    // If data exists but not in index, try to repair by adding to index
+    if (dataExists && !inIndex) {
+        ESP_LOGW(TAG, "Yard %lu exists but not in index, repairing...", (unsigned long)yardNumber);
+        addToYardIndex(yardNumber);
+    }
+
+    // If in index but data doesn't exist, remove from index (orphaned entry)
+    if (!dataExists && inIndex) {
+        ESP_LOGW(TAG, "Yard %lu in index but data missing, cleaning up...", (unsigned long)yardNumber);
+        std::vector<uint32_t> newIndex;
+        for (uint32_t num : index) {
+            if (num != yardNumber) {
+                newIndex.push_back(num);
+            }
+        }
+        saveYardIndex(newIndex);
+        return true;  // Number is now available
+    }
+
+    return !dataExists;
 }
 
 size_t getYardCount() {
@@ -239,6 +375,11 @@ bool saveHive(const HiveRecord& hive) {
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to commit hive %lu: %s", (unsigned long)hive.hiveNumber, esp_err_to_name(err));
         return false;
+    }
+
+    // Add to index
+    if (!addToHiveIndex(hive.hiveNumber)) {
+        ESP_LOGW(TAG, "Failed to add hive %lu to index", (unsigned long)hive.hiveNumber);
     }
 
     ESP_LOGI(TAG, "Saved hive %lu", (unsigned long)hive.hiveNumber);
@@ -309,25 +450,7 @@ bool deleteHive(uint32_t hiveNumber) {
 }
 
 std::vector<uint32_t> getAllHiveNumbers() {
-    std::vector<uint32_t> numbers;
-    nvs_handle_t handle;
-
-    if (nvs_open(YM_NVS_NAMESPACE, NVS_READONLY, &handle) != ESP_OK) {
-        return numbers;
-    }
-
-    // Iterate through possible hive numbers
-    for (uint32_t num = MIN_HIVE_NUMBER; num <= MAX_HIVE_NUMBER && numbers.size() < MAX_HIVES; num++) {
-        char key[20];
-        makeHiveKey(num, key, sizeof(key));
-
-        size_t size = 0;
-        if (nvs_get_blob(handle, key, nullptr, &size) == ESP_OK && size > 0) {
-            numbers.push_back(num);
-        }
-    }
-
-    nvs_close(handle);
+    std::vector<uint32_t> numbers = loadHiveIndex();
     std::sort(numbers.begin(), numbers.end());
     return numbers;
 }
@@ -537,6 +660,60 @@ bool clearAllYardManagementData() {
 
     ESP_LOGI(TAG, "Cleared all yard management data");
     return true;
+}
+
+// ==================== Inspection Integration ====================
+
+static const char* SELECTED_HIVE_KEY = "sel_hive";
+
+bool storeSelectedHiveForInspection(uint32_t hiveNumber) {
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(YM_NVS_NAMESPACE, NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        return false;
+    }
+
+    err = nvs_set_u32(handle, SELECTED_HIVE_KEY, hiveNumber);
+    if (err == ESP_OK) {
+        err = nvs_commit(handle);
+    }
+
+    nvs_close(handle);
+    ESP_LOGI(TAG, "Stored selected hive %lu for inspection", (unsigned long)hiveNumber);
+    return err == ESP_OK;
+}
+
+uint32_t getSelectedHiveForInspection() {
+    nvs_handle_t handle;
+    uint32_t hiveNumber = 0;
+
+    if (nvs_open(YM_NVS_NAMESPACE, NVS_READONLY, &handle) != ESP_OK) {
+        return 0;
+    }
+
+    nvs_get_u32(handle, SELECTED_HIVE_KEY, &hiveNumber);
+    nvs_close(handle);
+    return hiveNumber;
+}
+
+bool clearSelectedHiveForInspection() {
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(YM_NVS_NAMESPACE, NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        return false;
+    }
+
+    err = nvs_erase_key(handle, SELECTED_HIVE_KEY);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        err = ESP_OK;  // Key didn't exist, that's fine
+    }
+
+    if (err == ESP_OK) {
+        nvs_commit(handle);
+    }
+
+    nvs_close(handle);
+    return err == ESP_OK;
 }
 
 } // namespace YARD_MANAGEMENT

@@ -95,4 +95,15 @@ bool updateYardHiveCount(uint32_t yardNumber);
 // Clear all yard and hive data (factory reset)
 bool clearAllYardManagementData();
 
+// ==================== Inspection Integration ====================
+
+// Store selected hive for inspection app to read
+bool storeSelectedHiveForInspection(uint32_t hiveNumber);
+
+// Get selected hive for inspection (returns 0 if none selected)
+uint32_t getSelectedHiveForInspection();
+
+// Clear selected hive after inspection starts
+bool clearSelectedHiveForInspection();
+
 } // namespace YARD_MANAGEMENT

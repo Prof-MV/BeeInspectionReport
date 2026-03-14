@@ -106,6 +106,75 @@ uint32_t ScreenBaseYM::adjustDigit(uint32_t value, int digitIndex, int direction
     return newValue;
 }
 
+void ScreenBaseYM::drawCounterInput(uint32_t value, uint32_t minValue, uint32_t maxValue, int y) {
+    // Format the number - show only significant digits (right-aligned growth)
+    char numStr[12];
+    snprintf(numStr, sizeof(numStr), "%lu", static_cast<unsigned long>(value));
+    int numLen = strlen(numStr);
+
+    // Calculate box dimensions based on number of digits shown
+    int charWidth = 22;
+    int charSpacing = 2;
+    int boxPadding = 16;
+    int boxHeight = 50;
+    int boxWidth = numLen * (charWidth + charSpacing) - charSpacing + boxPadding * 2;
+    int minBoxWidth = 80;  // Minimum width for single digit
+    if (boxWidth < minBoxWidth) boxWidth = minBoxWidth;
+
+    int boxX = (DISPLAY_WIDTH - boxWidth) / 2;
+
+    // Draw the input box
+    _canvas->fillRoundRect(boxX, y, boxWidth, boxHeight, 8, COLOR_HIGHLIGHT_BG);
+    _canvas->drawRoundRect(boxX, y, boxWidth, boxHeight, 8, _themeColor);
+
+    // Draw the number (right-aligned within box)
+    _canvas->setFont(&fonts::FreeSansBold18pt7b);
+    _canvas->setTextColor(COLOR_TEXT_PRIMARY);
+    _canvas->setTextDatum(textdatum_t::middle_center);
+    _canvas->drawString(numStr, DISPLAY_CENTER_X, y + boxHeight / 2);
+
+    // Draw up arrow above
+    int arrowY = y - 12;
+    _canvas->fillTriangle(DISPLAY_CENTER_X, arrowY - 10,
+                          DISPLAY_CENTER_X - 12, arrowY,
+                          DISPLAY_CENTER_X + 12, arrowY, _themeColor);
+
+    // Draw down arrow below
+    arrowY = y + boxHeight + 12;
+    _canvas->fillTriangle(DISPLAY_CENTER_X, arrowY + 10,
+                          DISPLAY_CENTER_X - 12, arrowY,
+                          DISPLAY_CENTER_X + 12, arrowY, _themeColor);
+
+    // Show min/max hints
+    _canvas->setFont(&fonts::FreeSans9pt7b);
+    _canvas->setTextColor(COLOR_TEXT_SECONDARY);
+    _canvas->setTextDatum(textdatum_t::top_center);
+
+    char rangeStr[24];
+    snprintf(rangeStr, sizeof(rangeStr), "%lu - %lu",
+             static_cast<unsigned long>(minValue), static_cast<unsigned long>(maxValue));
+    _canvas->drawString(rangeStr, DISPLAY_CENTER_X, y + boxHeight + 28);
+}
+
+uint32_t ScreenBaseYM::adjustCounter(uint32_t value, int direction, uint32_t minValue, uint32_t maxValue) {
+    if (direction > 0) {
+        // Increment
+        if (value < maxValue) {
+            value++;
+        } else {
+            value = minValue;  // Wrap to minimum
+        }
+    } else {
+        // Decrement
+        if (value > minValue) {
+            value--;
+        } else {
+            value = maxValue;  // Wrap to maximum
+        }
+    }
+    return value;
+}
+
 void ScreenBaseYM::drawListItem(const char* text, int y, bool selected, bool isManagement) {
     int boxWidth = MAX_CONTENT_WIDTH;
     int boxHeight = LIST_ITEM_HEIGHT;
@@ -393,25 +462,29 @@ void ScreenBaseYM::pushToDisplay() {
 }
 
 void ScreenBaseYM::buzzConfirm() {
+    // Use consistent frequency to avoid LEDC clock source conflicts
     _hal->buzz.tone(2000, 30);
 }
 
 void ScreenBaseYM::buzzNavigate() {
-    _hal->buzz.tone(4000, 15);
+    // Use same frequency, shorter duration
+    _hal->buzz.tone(2000, 15);
 }
 
 void ScreenBaseYM::buzzError() {
-    _hal->buzz.tone(1000, 50);
+    // Use same frequency, double beep pattern
+    _hal->buzz.tone(2000, 50);
     vTaskDelay(pdMS_TO_TICKS(60));
-    _hal->buzz.tone(1000, 50);
+    _hal->buzz.tone(2000, 50);
 }
 
 void ScreenBaseYM::buzzSuccess() {
+    // Use same frequency, triple beep pattern with varying durations
     _hal->buzz.tone(2000, 50);
     vTaskDelay(pdMS_TO_TICKS(50));
-    _hal->buzz.tone(2500, 50);
+    _hal->buzz.tone(2000, 75);
     vTaskDelay(pdMS_TO_TICKS(50));
-    _hal->buzz.tone(3000, 50);
+    _hal->buzz.tone(2000, 100);
 }
 
 } // namespace YARD_MANAGEMENT
