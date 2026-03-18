@@ -168,16 +168,28 @@ void BeehiveInspection::handleButton() {
             _data.waitingForDoubleClick = false;
         }
 
-        // Check for long press (>800ms) - only for inspection screens, not selection
         uint32_t pressDuration = now - _data.buttonPressStart;
-        if (!_inSelectionMode && pressDuration > BEEHIVE_INSPECTION_NS::LONG_PRESS_MS && !_data.isLongPressHandled) {
+
+        // Check for long press (>800ms)
+        if (pressDuration > BEEHIVE_INSPECTION_NS::LONG_PRESS_MS && !_data.isLongPressHandled) {
             _data.isLongPressHandled = true;
-            saveAndExit();
-            return;
+
+            if (_inSelectionMode && _selectionScreen) {
+                // Long press in selection mode = back/exit
+                if (!_selectionScreen->onBack()) {
+                    // Exit app if back not handled (on yard selection screen)
+                    destroyApp();
+                    return;
+                }
+            } else {
+                // Long press in inspection mode = save and exit
+                saveAndExit();
+                return;
+            }
         }
 
-        // Show long press progress indicator (only for inspection screens)
-        if (!_inSelectionMode && pressDuration > 100 && !_data.isLongPressHandled) {
+        // Show long press progress indicator
+        if (pressDuration > 100 && !_data.isLongPressHandled) {
             float progress = (float)(pressDuration - 100) / (BEEHIVE_INSPECTION_NS::LONG_PRESS_MS - 100);
             if (progress > 1.0f) progress = 1.0f;
             drawLongPressProgress(progress);
@@ -188,27 +200,39 @@ void BeehiveInspection::handleButton() {
             uint32_t pressDuration = now - _data.buttonPressStart;
 
             if (pressDuration < BEEHIVE_INSPECTION_NS::LONG_PRESS_MS && !_data.isLongPressHandled) {
-                // Short press detected
-                if (_data.waitingForDoubleClick &&
-                    (now - _data.lastReleaseTime) < BEEHIVE_INSPECTION_NS::DOUBLE_CLICK_WINDOW_MS) {
-                    // Double click detected
-                    _data.waitingForDoubleClick = false;
+                // Short press detected - handle as single click for selection/confirm
+                if (_inSelectionMode && _selectionScreen) {
+                    // Single click in selection mode = confirm selection
+                    if (_selectionScreen->onConfirm()) {
+                        // Selection complete, transition to inspection screens
+                        _inSelectionMode = false;
+                        _log("Selection complete: Yard %lu (%s), Hive %lu",
+                             static_cast<unsigned long>(_context.yardNumber),
+                             _context.yardNickname,
+                             static_cast<unsigned long>(_context.hiveNumber));
 
-                    if (_inSelectionMode && _selectionScreen) {
-                        if (!_selectionScreen->onBack()) {
-                            // Exit app if back not handled
-                            destroyApp();
-                            return;
-                        }
-                    } else if (_screens[_data.currentScreenIndex]) {
+                        // Clean up selection screen
+                        delete _selectionScreen;
+                        _selectionScreen = nullptr;
+
+                        // Start inspection
+                        _data.currentScreenIndex = 0;
+                        _screens[0]->onEnter();
+                    }
+                } else if (_screens[_data.currentScreenIndex]) {
+                    // For inspection screens, use double-click detection
+                    if (_data.waitingForDoubleClick &&
+                        (now - _data.lastReleaseTime) < BEEHIVE_INSPECTION_NS::DOUBLE_CLICK_WINDOW_MS) {
+                        // Double click detected - go back
+                        _data.waitingForDoubleClick = false;
                         if (!_screens[_data.currentScreenIndex]->onBack()) {
                             goToPreviousScreen();
                         }
+                    } else {
+                        // First click - wait for potential double click
+                        _data.waitingForDoubleClick = true;
+                        _data.lastReleaseTime = now;
                     }
-                } else {
-                    // First click - wait for potential double click
-                    _data.waitingForDoubleClick = true;
-                    _data.lastReleaseTime = now;
                 }
             }
 
@@ -223,30 +247,12 @@ void BeehiveInspection::handleButton() {
         }
     }
 
-    // Handle single click timeout (no double click came)
-    if (_data.waitingForDoubleClick &&
+    // Handle single click timeout for inspection screens (no double click came)
+    if (!_inSelectionMode && _data.waitingForDoubleClick &&
         (now - _data.lastReleaseTime) > BEEHIVE_INSPECTION_NS::DOUBLE_CLICK_WINDOW_MS) {
         _data.waitingForDoubleClick = false;
 
-        if (_inSelectionMode && _selectionScreen) {
-            // Single click in selection mode
-            if (_selectionScreen->onConfirm()) {
-                // Selection complete, transition to inspection screens
-                _inSelectionMode = false;
-                _log("Selection complete: Yard %lu (%s), Hive %lu",
-                     static_cast<unsigned long>(_context.yardNumber),
-                     _context.yardNickname,
-                     static_cast<unsigned long>(_context.hiveNumber));
-
-                // Clean up selection screen
-                delete _selectionScreen;
-                _selectionScreen = nullptr;
-
-                // Start inspection
-                _data.currentScreenIndex = 0;
-                _screens[0]->onEnter();
-            }
-        } else if (_screens[_data.currentScreenIndex]) {
+        if (_screens[_data.currentScreenIndex]) {
             if (_screens[_data.currentScreenIndex]->onConfirm()) {
                 goToNextScreen();
             }

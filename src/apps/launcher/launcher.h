@@ -46,6 +46,9 @@ namespace MOONCAKE
                 void _launcher_loop();
                 void _app_open_callback(uint8_t selectedNum);
                 void _simple_app_manager(MOONCAKE::APP_BASE* app);
+                void _check_rfid();
+                void _show_yard_info(uint32_t yardNumber);
+                void _launch_hive_inspection(uint32_t hiveNumber);
 
             public:
                 Launcher() = default;

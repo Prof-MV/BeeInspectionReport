@@ -106,4 +106,10 @@ uint32_t getSelectedHiveForInspection();
 // Clear selected hive after inspection starts
 bool clearSelectedHiveForInspection();
 
+// Set flag to launch inspection app (used by launcher to auto-start beehive inspection)
+bool setLaunchInspectionFlag(bool launch);
+
+// Check and clear the launch inspection flag
+bool shouldLaunchInspection();
+
 } // namespace YARD_MANAGEMENT

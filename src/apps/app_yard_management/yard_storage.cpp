@@ -716,4 +716,51 @@ bool clearSelectedHiveForInspection() {
     return err == ESP_OK;
 }
 
+static const char* LAUNCH_INSPECTION_KEY = "launch_insp";
+
+bool setLaunchInspectionFlag(bool launch) {
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(YM_NVS_NAMESPACE, NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        return false;
+    }
+
+    if (launch) {
+        err = nvs_set_u8(handle, LAUNCH_INSPECTION_KEY, 1);
+    } else {
+        err = nvs_erase_key(handle, LAUNCH_INSPECTION_KEY);
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            err = ESP_OK;
+        }
+    }
+
+    if (err == ESP_OK) {
+        nvs_commit(handle);
+    }
+
+    nvs_close(handle);
+    ESP_LOGI(TAG, "Set launch inspection flag: %s", launch ? "true" : "false");
+    return err == ESP_OK;
+}
+
+bool shouldLaunchInspection() {
+    nvs_handle_t handle;
+    uint8_t value = 0;
+
+    if (nvs_open(YM_NVS_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK) {
+        return false;
+    }
+
+    esp_err_t err = nvs_get_u8(handle, LAUNCH_INSPECTION_KEY, &value);
+
+    // Clear the flag after reading
+    if (err == ESP_OK && value != 0) {
+        nvs_erase_key(handle, LAUNCH_INSPECTION_KEY);
+        nvs_commit(handle);
+    }
+
+    nvs_close(handle);
+    return (err == ESP_OK && value != 0);
+}
+
 } // namespace YARD_MANAGEMENT

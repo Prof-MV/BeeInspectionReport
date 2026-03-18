@@ -59,6 +59,11 @@ void YardManagement::handleScreenUpdate() {
     if (_currentScreenPtr) {
         NavigationResult result = _currentScreenPtr->onUpdate();
 
+        if (result.launchInspection) {
+            // Set flag for launcher to auto-launch beehive inspection
+            setLaunchInspectionFlag(true);
+        }
+
         if (result.exitApp) {
             destroyApp();
         } else if (result.nextScreen != ScreenType::NONE) {
@@ -218,6 +223,11 @@ void YardManagement::handleButton() {
             if (pressDuration < YARD_MANAGEMENT_NS::BACK_PRESS_MS && !_data.isBackHandled) {
                 if (_currentScreenPtr) {
                     NavigationResult result = _currentScreenPtr->onConfirm();
+
+                    if (result.launchInspection) {
+                        // Set flag for launcher to auto-launch beehive inspection
+                        setLaunchInspectionFlag(true);
+                    }
 
                     if (result.exitApp) {
                         destroyApp();

@@ -126,7 +126,7 @@ void ScreenSelectYardHive::renderYardSelect() {
     _canvas->setFont(&fonts::FreeSans9pt7b);
     _canvas->setTextColor(COLOR_TEXT_SECONDARY);
     _canvas->setTextDatum(textdatum_t::bottom_center);
-    _canvas->drawString("2x tap = exit", DISPLAY_CENTER_X, CONTENT_BOTTOM);
+    _canvas->drawString("hold = exit", DISPLAY_CENTER_X, CONTENT_BOTTOM);
 
     pushToDisplay();
 }
@@ -191,7 +191,7 @@ void ScreenSelectYardHive::renderHiveSelect() {
     _canvas->setFont(&fonts::FreeSans9pt7b);
     _canvas->setTextColor(COLOR_TEXT_SECONDARY);
     _canvas->setTextDatum(textdatum_t::bottom_center);
-    _canvas->drawString("2x tap = back", DISPLAY_CENTER_X, CONTENT_BOTTOM);
+    _canvas->drawString("hold = back", DISPLAY_CENTER_X, CONTENT_BOTTOM);
 
     pushToDisplay();
 }
