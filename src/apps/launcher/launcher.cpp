@@ -283,6 +283,9 @@ void Launcher::_app_open_callback(uint8_t selectedNum)
         case 1:
             app_ptr = new MOONCAKE::USER_APP::YardManagement;
             break;
+        case 2:
+            app_ptr = new MOONCAKE::USER_APP::BleDataTransfer;
+            break;
         default:
             break;
     };

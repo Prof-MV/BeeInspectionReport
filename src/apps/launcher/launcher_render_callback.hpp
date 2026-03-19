@@ -26,7 +26,7 @@
 #define ICON_TAG_UP_OFFSET          -24
 #define ICON_TAG_DOWN_OFFSET        0
 
-#define ICON_NUM                    2
+#define ICON_NUM                    3
 
 
 /* Strucut to hold icon value */
@@ -45,17 +45,20 @@ static std::array<Icon_t, ICON_NUM> icon_list;
 /* Icon color */
 static std::array<uint32_t, ICON_NUM> icon_color_list = {
     0xFFA500,  // Beehive Inspection - amber/orange
-    0x4CAF50   // Yard Management - green
+    0x4CAF50,  // Yard Management - green
+    0x2196F3   // BLE Data Transfer - blue
 };
 /* Icon tag */
 static std::array<std::string, ICON_NUM * 2> icon_tag_list = {
     "BEEHIVE", "INSPECT",
-    "YARD", "MGMT"
+    "YARD", "MGMT",
+    "BLE", "DATA"
 };
 /* Icon pic */
 static std::array<const uint16_t*, ICON_NUM> icon_pic_list = {
     image_data_icon_beehive,
-    image_data_icon_beehive  // Reuse beehive icon for now
+    image_data_icon_beehive,  // Reuse beehive icon for now
+    image_data_icon_beehive   // Reuse beehive icon for BLE (can replace with BLE icon later)
 };
 /* Sprite to render icon with transparency */
 static LGFX_Sprite icon_sprite_list[ICON_NUM];
