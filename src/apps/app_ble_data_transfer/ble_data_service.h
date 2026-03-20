@@ -39,8 +39,12 @@ typedef enum {
     CMD_GET_HIVE_COUNT      = 0x08,   // Get count of hives
     CMD_GET_HIVES_IN_YARD   = 0x09,   // Get hives in yard (followed by 4-byte yard number)
     CMD_GET_HIVE            = 0x0A,   // Get specific hive by number (followed by 4-byte number)
-    CMD_GET_ALL_DATA        = 0x0B,   // Stream all data (yards, hives, inspections)
+    CMD_GET_ALL_DATA        = 0x0B,   // Stream all data (yards, hives, inspections, equipment plans)
+    CMD_GET_EQUIPMENT_PLAN_COUNT = 0x0C, // Get count of equipment plans
+    CMD_GET_EQUIPMENT_PLAN  = 0x0D,   // Get equipment plan for yard (followed by 4-byte yard number)
+    CMD_GET_EQUIPMENT_PLANS = 0x0E,   // Get all equipment plans
     CMD_SET_TIME            = 0x20,   // Set RTC time (followed by 4-byte Unix timestamp)
+    CMD_CLEAR_EQUIPMENT_PLANS = 0x30, // Clear all equipment plans
     CMD_PING                = 0xFF,   // Simple ping to test connection
 } BleCommand_t;
 

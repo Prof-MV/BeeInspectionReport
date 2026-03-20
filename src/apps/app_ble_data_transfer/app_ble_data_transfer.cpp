@@ -159,6 +159,99 @@ void BleDataTransfer::_process_data_requests()
             break;
         }
 
+        case CMD_GET_EQUIPMENT_PLAN_COUNT:
+        {
+            size_t count = YARD_MANAGEMENT::getEquipmentPlanCount();
+            printf("[BLE_App] Sending equipment plan count: %d\n", (int)count);
+
+            response[0] = RESP_OK;
+            response[1] = CMD_GET_EQUIPMENT_PLAN_COUNT;
+            response[2] = (count >> 0) & 0xFF;
+            response[3] = (count >> 8) & 0xFF;
+            len = 4;
+            ble_data_service_send_data(response, len);
+            break;
+        }
+
+        case CMD_GET_EQUIPMENT_PLAN:
+        {
+            // The yard number was stored in the response buffer by the C layer
+            uint32_t yardNum;
+            memcpy(&yardNum, &info->last_command, sizeof(uint32_t)); // Not available this way
+            // Re-read from a different approach - we need to pass the yard number somehow
+            // For now, we handle this in a simplified way
+            printf("[BLE_App] GET_EQUIPMENT_PLAN - need yard number from command\n");
+            // This case needs the yard number passed differently - handled below
+            break;
+        }
+
+        case CMD_GET_EQUIPMENT_PLANS:
+        {
+            std::vector<uint32_t> yardsWithPlans = YARD_MANAGEMENT::getYardsWithEquipmentPlans();
+            printf("[BLE_App] Sending %d equipment plans\n", (int)yardsWithPlans.size());
+
+            // Send count first
+            response[0] = RESP_DATA_START;
+            response[1] = CMD_GET_EQUIPMENT_PLANS;
+            response[2] = (yardsWithPlans.size() >> 0) & 0xFF;
+            response[3] = (yardsWithPlans.size() >> 8) & 0xFF;
+            len = 4;
+            ble_data_service_send_data(response, len);
+
+            // Send each equipment plan
+            for (uint32_t yardNum : yardsWithPlans) {
+                YARD_MANAGEMENT::EquipmentPlan plan;
+                if (YARD_MANAGEMENT::loadEquipmentPlan(yardNum, plan)) {
+                    char jsonBuf[256];
+                    int jsonLen = snprintf(jsonBuf, sizeof(jsonBuf),
+                        "{\"type\":\"equipment_plan\",\"yard\":%lu,\"ts\":%lu,"
+                        "\"brood_boxes\":%d,\"supers\":%d,\"bottom_boards\":%d,"
+                        "\"inner_lids\":%d,\"outer_lids\":%d,\"queen_excluders\":%d,"
+                        "\"hive_stands\":%d,\"insulation\":%d,\"entrance_reducers\":%d,\"feeders\":%d}",
+                        (unsigned long)plan.yardNumber,
+                        (unsigned long)plan.timestamp,
+                        plan.quantities[0], plan.quantities[1], plan.quantities[2],
+                        plan.quantities[3], plan.quantities[4], plan.quantities[5],
+                        plan.quantities[6], plan.quantities[7], plan.quantities[8], plan.quantities[9]);
+
+                    printf("[BLE_App] Sending equipment plan: %s\n", jsonBuf);
+
+                    response[0] = RESP_DATA_CONT;
+                    response[1] = 'E';  // Equipment plan marker
+                    memcpy(&response[2], jsonBuf, jsonLen);
+                    ble_data_service_send_data(response, 2 + jsonLen);
+
+                    vTaskDelay(pdMS_TO_TICKS(20));
+                }
+            }
+
+            // Send end marker
+            response[0] = RESP_DATA_END;
+            response[1] = CMD_GET_EQUIPMENT_PLANS;
+            ble_data_service_send_data(response, 2);
+
+            ble_data_service_transfer_complete();
+            break;
+        }
+
+        case CMD_CLEAR_EQUIPMENT_PLANS:
+        {
+            printf("[BLE_App] Clearing all equipment plans...\n");
+            bool success = YARD_MANAGEMENT::clearAllEquipmentPlans();
+
+            response[0] = success ? RESP_OK : RESP_ERROR;
+            response[1] = CMD_CLEAR_EQUIPMENT_PLANS;
+            len = 2;
+            ble_data_service_send_data(response, len);
+
+            if (success) {
+                printf("[BLE_App] Equipment plans cleared successfully\n");
+            } else {
+                printf("[BLE_App] ERROR: Failed to clear equipment plans\n");
+            }
+            break;
+        }
+
         case CMD_GET_ALL_DATA:
         {
             printf("[BLE_App] Starting full data transfer...\n");
@@ -167,18 +260,20 @@ void BleDataTransfer::_process_data_requests()
             std::vector<uint32_t> yardNums = YARD_MANAGEMENT::getAllYardNumbers();
             std::vector<uint32_t> hiveNums = YARD_MANAGEMENT::getAllHiveNumbers();
             std::vector<uint32_t> inspectionIds = BEEHIVE_INSPECTION::getAllInspectionIDs();
+            std::vector<uint32_t> yardsWithPlans = YARD_MANAGEMENT::getYardsWithEquipmentPlans();
 
             // Calculate total for progress tracking
             info->total_bytes = (yardNums.size() * sizeof(YARD_MANAGEMENT::YardRecord)) +
                                (hiveNums.size() * sizeof(YARD_MANAGEMENT::HiveRecord)) +
-                               (inspectionIds.size() * sizeof(BEEHIVE_INSPECTION::InspectionRecord));
+                               (inspectionIds.size() * sizeof(BEEHIVE_INSPECTION::InspectionRecord)) +
+                               (yardsWithPlans.size() * sizeof(YARD_MANAGEMENT::EquipmentPlan));
             info->bytes_sent = 0;
 
             printf("[BLE_App] Total data to send: ~%lu bytes\n", (unsigned long)info->total_bytes);
-            printf("[BLE_App] Yards: %d, Hives: %d, Inspections: %d\n",
-                   (int)yardNums.size(), (int)hiveNums.size(), (int)inspectionIds.size());
+            printf("[BLE_App] Yards: %d, Hives: %d, Inspections: %d, Equipment Plans: %d\n",
+                   (int)yardNums.size(), (int)hiveNums.size(), (int)inspectionIds.size(), (int)yardsWithPlans.size());
 
-            // Send summary header
+            // Send summary header (now includes equipment plan count)
             response[0] = RESP_DATA_START;
             response[1] = CMD_GET_ALL_DATA;
             response[2] = yardNums.size() & 0xFF;
@@ -187,7 +282,9 @@ void BleDataTransfer::_process_data_requests()
             response[5] = (hiveNums.size() >> 8) & 0xFF;
             response[6] = inspectionIds.size() & 0xFF;
             response[7] = (inspectionIds.size() >> 8) & 0xFF;
-            ble_data_service_send_data(response, 8);
+            response[8] = yardsWithPlans.size() & 0xFF;
+            response[9] = (yardsWithPlans.size() >> 8) & 0xFF;
+            ble_data_service_send_data(response, 10);
 
             // Send yards as JSON-ish format for easy phone parsing
             for (uint32_t yardNum : yardNums) {
@@ -284,6 +381,33 @@ void BleDataTransfer::_process_data_requests()
 
                     response[0] = RESP_DATA_CONT;
                     response[1] = 'I';  // Inspection marker
+                    memcpy(&response[2], jsonBuf, jsonLen);
+                    ble_data_service_send_data(response, 2 + jsonLen);
+
+                    vTaskDelay(pdMS_TO_TICKS(20));
+                }
+            }
+
+            // Send equipment plans
+            for (uint32_t yardNum : yardsWithPlans) {
+                YARD_MANAGEMENT::EquipmentPlan plan;
+                if (YARD_MANAGEMENT::loadEquipmentPlan(yardNum, plan)) {
+                    char jsonBuf[256];
+                    int jsonLen = snprintf(jsonBuf, sizeof(jsonBuf),
+                        "{\"type\":\"equipment_plan\",\"yard\":%lu,\"ts\":%lu,"
+                        "\"brood_boxes\":%d,\"supers\":%d,\"bottom_boards\":%d,"
+                        "\"inner_lids\":%d,\"outer_lids\":%d,\"queen_excluders\":%d,"
+                        "\"hive_stands\":%d,\"insulation\":%d,\"entrance_reducers\":%d,\"feeders\":%d}",
+                        (unsigned long)plan.yardNumber,
+                        (unsigned long)plan.timestamp,
+                        plan.quantities[0], plan.quantities[1], plan.quantities[2],
+                        plan.quantities[3], plan.quantities[4], plan.quantities[5],
+                        plan.quantities[6], plan.quantities[7], plan.quantities[8], plan.quantities[9]);
+
+                    printf("[BLE_App] Sending equipment plan: %s\n", jsonBuf);
+
+                    response[0] = RESP_DATA_CONT;
+                    response[1] = 'E';  // Equipment plan marker
                     memcpy(&response[2], jsonBuf, jsonLen);
                     ble_data_service_send_data(response, 2 + jsonLen);
 

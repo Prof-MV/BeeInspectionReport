@@ -101,6 +101,15 @@ bool loadEquipmentPlan(uint32_t yardNumber, EquipmentPlan& plan);
 // Delete an equipment plan from NVS
 bool deleteEquipmentPlan(uint32_t yardNumber);
 
+// Get all yard numbers that have equipment plans
+std::vector<uint32_t> getYardsWithEquipmentPlans();
+
+// Get count of equipment plans
+size_t getEquipmentPlanCount();
+
+// Clear all equipment plans
+bool clearAllEquipmentPlans();
+
 // ==================== Maintenance ====================
 
 // Clear all yard and hive data (factory reset)

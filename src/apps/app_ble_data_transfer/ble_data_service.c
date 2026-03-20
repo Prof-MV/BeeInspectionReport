@@ -238,6 +238,43 @@ static void process_command(const uint8_t* data, uint16_t len)
             _service_info.bytes_sent = 0;
             break;
 
+        case CMD_GET_EQUIPMENT_PLAN_COUNT:
+            printf("[BLE] GET_EQUIPMENT_PLAN_COUNT requested\n");
+            _response_buf[0] = RESP_OK;
+            _response_buf[1] = CMD_GET_EQUIPMENT_PLAN_COUNT;
+            _response_len = 2;
+            break;
+
+        case CMD_GET_EQUIPMENT_PLAN:
+            if (len >= 5) {
+                uint32_t yard_num = data[1] | (data[2] << 8) | (data[3] << 16) | (data[4] << 24);
+                printf("[BLE] GET_EQUIPMENT_PLAN yard=%lu requested\n", (unsigned long)yard_num);
+                _response_buf[0] = RESP_OK;
+                _response_buf[1] = CMD_GET_EQUIPMENT_PLAN;
+                memcpy(&_response_buf[2], &yard_num, 4);
+                _response_len = 6;
+            } else {
+                printf("[BLE] ERROR: GET_EQUIPMENT_PLAN missing yard number\n");
+                _response_buf[0] = RESP_ERROR;
+                _response_len = 1;
+            }
+            break;
+
+        case CMD_GET_EQUIPMENT_PLANS:
+            printf("[BLE] GET_EQUIPMENT_PLANS requested\n");
+            _response_buf[0] = RESP_DATA_START;
+            _response_buf[1] = CMD_GET_EQUIPMENT_PLANS;
+            _response_len = 2;
+            _service_info.transfer_in_progress = 1;
+            break;
+
+        case CMD_CLEAR_EQUIPMENT_PLANS:
+            printf("[BLE] CLEAR_EQUIPMENT_PLANS requested\n");
+            _response_buf[0] = RESP_OK;
+            _response_buf[1] = CMD_CLEAR_EQUIPMENT_PLANS;
+            _response_len = 2;
+            break;
+
         case CMD_SET_TIME:
             if (len >= 5) {
                 uint32_t unix_time = data[1] | (data[2] << 8) | (data[3] << 16) | (data[4] << 24);

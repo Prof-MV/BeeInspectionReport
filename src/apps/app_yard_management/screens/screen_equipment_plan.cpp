@@ -64,7 +64,7 @@ void ScreenEquipmentPlan::render() {
     drawBackground();
 
     // Header
-    drawHeader("EQUIPMENT PLAN");
+    drawHeader("EQUIPMENT");
 
     // Progress indicator
     char progress[24];
@@ -80,15 +80,45 @@ void ScreenEquipmentPlan::render() {
     _canvas->setTextDatum(textdatum_t::middle_center);
     _canvas->drawString(equipmentName, DISPLAY_CENTER_X, 85);
 
-    // Current quantity - use counter input style
+    // Custom counter input with arrows on the right
     uint8_t currentQty = _plan.quantities[_currentEquipmentIndex];
-    drawCounterInput(currentQty, 0, MAX_QUANTITY, 105);
+    char numStr[12];
+    snprintf(numStr, sizeof(numStr), "%d", currentQty);
 
-    // Navigation hints
+    // Input box dimensions
+    int boxWidth = 70;
+    int boxHeight = 50;
+    int boxX = DISPLAY_CENTER_X - 50;  // Offset left to make room for arrows
+    int boxY = 110;
+
+    // Draw the input box
+    _canvas->fillRoundRect(boxX, boxY, boxWidth, boxHeight, 8, COLOR_HIGHLIGHT_BG);
+    _canvas->drawRoundRect(boxX, boxY, boxWidth, boxHeight, 8, _themeColor);
+
+    // Draw the number centered in box
+    _canvas->setFont(&fonts::FreeSansBold18pt7b);
+    _canvas->setTextColor(COLOR_TEXT_PRIMARY);
+    _canvas->setTextDatum(textdatum_t::middle_center);
+    _canvas->drawString(numStr, boxX + boxWidth / 2, boxY + boxHeight / 2);
+
+    // Draw up/down arrows on the right side of the box
+    int arrowX = boxX + boxWidth + 25;
+    int arrowCenterY = boxY + boxHeight / 2;
+
+    // Up arrow
+    _canvas->fillTriangle(arrowX, arrowCenterY - 20,
+                          arrowX - 10, arrowCenterY - 8,
+                          arrowX + 10, arrowCenterY - 8, _themeColor);
+
+    // Down arrow
+    _canvas->fillTriangle(arrowX, arrowCenterY + 20,
+                          arrowX - 10, arrowCenterY + 8,
+                          arrowX + 10, arrowCenterY + 8, _themeColor);
+
+    // Navigation hint at bottom
     _canvas->setFont(&fonts::FreeSans9pt7b);
     _canvas->setTextColor(COLOR_TEXT_SECONDARY);
     _canvas->setTextDatum(textdatum_t::bottom_center);
-
     if (_currentEquipmentIndex < EQUIPMENT_COUNT - 1) {
         _canvas->drawString("Click: Next", DISPLAY_CENTER_X, CONTENT_BOTTOM);
     } else {

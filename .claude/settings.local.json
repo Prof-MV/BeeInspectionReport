@@ -17,7 +17,8 @@
       "Bash(cmd.exe /c \"cd /d c:\\\\Users\\\\mvolk\\\\Documents\\\\PlatformIO\\\\Projects\\\\M5Dial-BeeInspectionReport && C:\\\\Users\\\\mvolk\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe run\":*)",
       "Bash(~/.platformio/penv/Scripts/pio run:*)",
       "Bash(~/.platformio/penv/Scripts/platformio.exe run:*)",
-      "Bash(\"$HOME/.platformio/penv/Scripts/pio.exe\" run:*)"
+      "Bash(\"$HOME/.platformio/penv/Scripts/pio.exe\" run:*)",
+      "Bash(g++ -fsyntax-only -std=c++17 -I.pio/libdeps/m5stack-stamps3 -Isrc src/apps/app_yard_management/yard_storage.cpp)"
     ]
   }
 }

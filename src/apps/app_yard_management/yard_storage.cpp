@@ -740,6 +740,39 @@ bool deleteEquipmentPlan(uint32_t yardNumber) {
     return true;
 }
 
+std::vector<uint32_t> getYardsWithEquipmentPlans() {
+    std::vector<uint32_t> result;
+    std::vector<uint32_t> allYards = getAllYardNumbers();
+
+    for (uint32_t yardNum : allYards) {
+        EquipmentPlan plan;
+        if (loadEquipmentPlan(yardNum, plan)) {
+            result.push_back(yardNum);
+        }
+    }
+
+    std::sort(result.begin(), result.end());
+    return result;
+}
+
+size_t getEquipmentPlanCount() {
+    return getYardsWithEquipmentPlans().size();
+}
+
+bool clearAllEquipmentPlans() {
+    std::vector<uint32_t> yardsWithPlans = getYardsWithEquipmentPlans();
+    bool success = true;
+
+    for (uint32_t yardNum : yardsWithPlans) {
+        if (!deleteEquipmentPlan(yardNum)) {
+            success = false;
+        }
+    }
+
+    ESP_LOGI(TAG, "Cleared %d equipment plans", (int)yardsWithPlans.size());
+    return success;
+}
+
 // ==================== Maintenance ====================
 
 bool clearAllYardManagementData() {
