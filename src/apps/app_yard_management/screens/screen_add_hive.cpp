@@ -23,6 +23,7 @@ ScreenAddHive::ScreenAddHive(HAL::HAL* hal, LGFX_Sprite* canvas, AppContext* con
 {
     memset(_scannedTag, 0, sizeof(_scannedTag));
     memset(_errorMessage, 0, sizeof(_errorMessage));
+    memset(_yardName, 0, sizeof(_yardName));
 }
 
 ScreenAddHive::~ScreenAddHive() {
@@ -72,6 +73,16 @@ void ScreenAddHive::onEnter() {
     _context->originHiveNumber = 0;
     memset(_scannedTag, 0, sizeof(_scannedTag));
 
+    // Load yard name
+    YardRecord yard;
+    if (loadYard(_context->selectedYardNumber, yard)) {
+        strncpy(_yardName, yard.nickname, MAX_NICKNAME_LENGTH);
+        _yardName[MAX_NICKNAME_LENGTH] = '\0';
+    } else {
+        snprintf(_yardName, sizeof(_yardName), "Yard %lu",
+                 static_cast<unsigned long>(_context->selectedYardNumber));
+    }
+
     render();
 }
 
@@ -102,9 +113,7 @@ void ScreenAddHive::render() {
 void ScreenAddHive::renderNumberStep() {
     drawHeader("ADD HIVE");
 
-    char subheader[32];
-    snprintf(subheader, sizeof(subheader), "Yard %lu", static_cast<unsigned long>(_context->selectedYardNumber));
-    drawSubheader(subheader);
+    drawSubheader(_yardName);
 
     drawCounterInput(_context->newHiveNumber, 1, MAX_HIVE_NUMBER, 80);
 

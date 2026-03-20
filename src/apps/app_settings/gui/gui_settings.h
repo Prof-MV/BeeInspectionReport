@@ -20,4 +20,7 @@ class GUI_Settings : public GUI_Base
 
         // Clear data confirmation screen
         void renderClearConfirm(bool yesSelected, bool clearing, bool cleared);
+
+        // Sleep confirmation screen
+        void renderSleepConfirm(bool yesSelected);
 };

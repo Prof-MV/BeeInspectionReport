@@ -19,6 +19,7 @@ namespace MOONCAKE
             enum class MenuOption {
                 TIMEZONE = 0,
                 CLEAR_DATA,
+                SLEEP,
                 DONE,
                 COUNT
             };
@@ -33,6 +34,7 @@ namespace MOONCAKE
                 // Sub-menu states
                 bool inTimezoneEdit = false;
                 bool inClearConfirm = false;
+                bool inSleepConfirm = false;
 
                 // Timezone offset from UTC (in hours, can be negative)
                 int8_t timezoneOffset = -4;  // Default GMT-4
@@ -41,6 +43,9 @@ namespace MOONCAKE
                 bool clearConfirmSelected = false;  // false = No, true = Yes
                 bool clearing = false;
                 bool cleared = false;
+
+                // Sleep confirmation
+                bool sleepConfirmSelected = false;  // false = No, true = Yes
             };
 
             // Timezone range
@@ -59,12 +64,16 @@ namespace MOONCAKE
                 void _handle_main_menu();
                 void _handle_timezone_edit();
                 void _handle_clear_confirm();
+                void _handle_sleep_confirm();
                 void _render();
 
                 // Storage
                 void _load_settings();
                 void _save_timezone();
                 bool _clear_all_data();
+
+                // Sleep
+                void _enter_sleep();
 
             public:
                 /**

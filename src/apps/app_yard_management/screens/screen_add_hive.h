@@ -39,6 +39,9 @@ private:
     // Validation
     bool _numberValid;
 
+    // Yard info
+    char _yardName[MAX_NICKNAME_LENGTH + 1];
+
     void loadOriginOptions();
     void freeOptionStrings();
     void renderNumberStep();

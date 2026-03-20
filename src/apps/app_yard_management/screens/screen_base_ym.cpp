@@ -133,27 +133,21 @@ void ScreenBaseYM::drawCounterInput(uint32_t value, uint32_t minValue, uint32_t 
     _canvas->setTextDatum(textdatum_t::middle_center);
     _canvas->drawString(numStr, DISPLAY_CENTER_X, y + boxHeight / 2);
 
-    // Draw up arrow above
-    int arrowY = y - 12;
-    _canvas->fillTriangle(DISPLAY_CENTER_X, arrowY - 10,
-                          DISPLAY_CENTER_X - 12, arrowY,
-                          DISPLAY_CENTER_X + 12, arrowY, _themeColor);
+    // Draw up/down arrows to the right of the box
+    int arrowX = boxX + boxWidth + 18;
+    int arrowSize = 10;
 
-    // Draw down arrow below
-    arrowY = y + boxHeight + 12;
-    _canvas->fillTriangle(DISPLAY_CENTER_X, arrowY + 10,
-                          DISPLAY_CENTER_X - 12, arrowY,
-                          DISPLAY_CENTER_X + 12, arrowY, _themeColor);
+    // Up arrow (top half of box)
+    int upArrowY = y + boxHeight / 4;
+    _canvas->fillTriangle(arrowX, upArrowY - arrowSize,
+                          arrowX - arrowSize, upArrowY + arrowSize / 2,
+                          arrowX + arrowSize, upArrowY + arrowSize / 2, _themeColor);
 
-    // Show min/max hints
-    _canvas->setFont(&fonts::FreeSans9pt7b);
-    _canvas->setTextColor(COLOR_TEXT_SECONDARY);
-    _canvas->setTextDatum(textdatum_t::top_center);
-
-    char rangeStr[24];
-    snprintf(rangeStr, sizeof(rangeStr), "%lu - %lu",
-             static_cast<unsigned long>(minValue), static_cast<unsigned long>(maxValue));
-    _canvas->drawString(rangeStr, DISPLAY_CENTER_X, y + boxHeight + 28);
+    // Down arrow (bottom half of box)
+    int downArrowY = y + boxHeight * 3 / 4;
+    _canvas->fillTriangle(arrowX, downArrowY + arrowSize,
+                          arrowX - arrowSize, downArrowY - arrowSize / 2,
+                          arrowX + arrowSize, downArrowY - arrowSize / 2, _themeColor);
 }
 
 uint32_t ScreenBaseYM::adjustCounter(uint32_t value, int direction, uint32_t minValue, uint32_t maxValue) {

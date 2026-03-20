@@ -28,23 +28,46 @@ void ScreenBroodSize::render() {
     drawBackground();
     drawHeader("BROOD SIZE");
 
-    // Draw large frame count
+    // Draw frame count in input box
     char valueStr[16];
     snprintf(valueStr, sizeof(valueStr), "%d", _frames);
 
-    _canvas->setTextColor(COLOR_TEXT_PRIMARY);
+    int boxWidth = 80;
+    int boxHeight = 50;
+    int boxX = DISPLAY_CENTER_X - boxWidth / 2 - 15;  // Offset left for arrows
+    int boxY = 85;
+
+    // Draw the input box
+    _canvas->fillRoundRect(boxX, boxY, boxWidth, boxHeight, 8, 0x2104);  // Dark background
+    _canvas->drawRoundRect(boxX, boxY, boxWidth, boxHeight, 8, _themeColor);
+
+    // Draw the number centered in box
     _canvas->setFont(&fonts::FreeSansBold24pt7b);
+    _canvas->setTextColor(COLOR_TEXT_PRIMARY);
     _canvas->setTextDatum(textdatum_t::middle_center);
-    _canvas->drawString(valueStr, 120, 110);
+    _canvas->drawString(valueStr, boxX + boxWidth / 2, boxY + boxHeight / 2);
+
+    // Draw up/down arrows on the right side of the box
+    int arrowX = boxX + boxWidth + 18;
+    int arrowSize = 10;
+
+    // Up arrow (top half of box)
+    int upArrowY = boxY + boxHeight / 4;
+    _canvas->fillTriangle(arrowX, upArrowY - arrowSize,
+                          arrowX - arrowSize, upArrowY + arrowSize / 2,
+                          arrowX + arrowSize, upArrowY + arrowSize / 2, _themeColor);
+
+    // Down arrow (bottom half of box)
+    int downArrowY = boxY + boxHeight * 3 / 4;
+    _canvas->fillTriangle(arrowX, downArrowY + arrowSize,
+                          arrowX - arrowSize, downArrowY - arrowSize / 2,
+                          arrowX + arrowSize, downArrowY - arrowSize / 2, _themeColor);
 
     // Draw "frames" label
     _canvas->setFont(&fonts::FreeSans12pt7b);
     _canvas->setTextColor(COLOR_TEXT_SECONDARY);
-    _canvas->drawString("frames", 120, 155);
-
-    // Draw range indicator
-    _canvas->setFont(&fonts::FreeSans9pt7b);
-    _canvas->drawString("(0 - 40)", 120, 180);
+    _canvas->setTextDatum(textdatum_t::middle_center);
+    _canvas->drawString("frames", DISPLAY_CENTER_X, boxY + boxHeight + 25);
 
     drawProgressIndicator();
     pushToDisplay();

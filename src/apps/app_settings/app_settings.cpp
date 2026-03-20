@@ -9,7 +9,11 @@
 #include "../common_define.h"
 #include "../app_yard_management/yard_storage.h"
 #include "../app_beehive_inspection/inspection_storage.h"
+#include "../../hal/hal_common_define.h"
 #include <cstdio>
+#include "esp_sleep.h"
+#include "driver/gpio.h"
+#include "driver/rtc_io.h"
 
 using namespace MOONCAKE::USER_APP;
 
@@ -86,6 +90,10 @@ void Settings::_handle_main_menu()
                 _data.clearConfirmSelected = false;  // Default to No
                 _data.clearing = false;
                 _data.cleared = false;
+                break;
+            case SETTINGS_APP::MenuOption::SLEEP:
+                _data.inSleepConfirm = true;
+                _data.sleepConfirmSelected = false;  // Default to No
                 break;
             case SETTINGS_APP::MenuOption::DONE:
                 destroyApp();
@@ -190,12 +198,99 @@ void Settings::_handle_clear_confirm()
     }
 }
 
+void Settings::_handle_sleep_confirm()
+{
+    // Handle rotation to toggle Yes/No
+    if (_data.hal->encoder.wasMoved(true)) {
+        _data.sleepConfirmSelected = !_data.sleepConfirmSelected;
+        _data.hal->buzz.tone(4000, 20);
+        _render();
+    }
+
+    // Handle button press
+    if (!_data.hal->encoder.btn.read()) {
+        // Wait for release
+        while (!_data.hal->encoder.btn.read()) {
+            delay(5);
+        }
+
+        if (_data.sleepConfirmSelected) {
+            // User selected Yes - enter sleep
+            _data.hal->buzz.tone(1000, 100);
+            delay(150);
+            _enter_sleep();
+            // After wake-up, reset state
+            _data.inSleepConfirm = false;
+            _render();
+        } else {
+            // User selected No - go back
+            _data.hal->buzz.tone(2000, 50);
+            _data.inSleepConfirm = false;
+            _render();
+        }
+    }
+}
+
+void Settings::_enter_sleep()
+{
+    printf("[Settings] Entering light sleep mode...\n");
+    printf("[Settings] Wake sources: Button (GPIO %d), Encoder A (GPIO %d), Encoder B (GPIO %d)\n",
+           HAL_PIN_PWR_WAKE_UP, HAL_PIN_ENCODER_A, HAL_PIN_ENCODER_B);
+
+    // Turn off display backlight to save power
+    // The display will be reinitialized on wake
+
+    // Configure GPIO wake-up sources
+    // Button - GPIO 42 - wake on low level (button pressed)
+    gpio_wakeup_enable((gpio_num_t)HAL_PIN_PWR_WAKE_UP, GPIO_INTR_LOW_LEVEL);
+
+    // Encoder pins - wake on any edge (rotation)
+    gpio_wakeup_enable((gpio_num_t)HAL_PIN_ENCODER_A, GPIO_INTR_LOW_LEVEL);
+    gpio_wakeup_enable((gpio_num_t)HAL_PIN_ENCODER_B, GPIO_INTR_LOW_LEVEL);
+
+    // Enable GPIO wakeup
+    esp_sleep_enable_gpio_wakeup();
+
+    // Optional: Add a timer wakeup as backup (30 seconds)
+    // esp_sleep_enable_timer_wakeup(30 * 1000000ULL);
+
+    printf("[Settings] Going to sleep now...\n");
+
+    // Enter light sleep
+    esp_light_sleep_start();
+
+    // --- Code resumes here after wake-up ---
+    printf("[Settings] Woke up from sleep!\n");
+
+    // Get wake-up cause
+    esp_sleep_wakeup_cause_t wakeup_cause = esp_sleep_get_wakeup_cause();
+    switch (wakeup_cause) {
+        case ESP_SLEEP_WAKEUP_GPIO:
+            printf("[Settings] Wake-up cause: GPIO\n");
+            break;
+        case ESP_SLEEP_WAKEUP_TIMER:
+            printf("[Settings] Wake-up cause: Timer\n");
+            break;
+        default:
+            printf("[Settings] Wake-up cause: %d\n", wakeup_cause);
+            break;
+    }
+
+    // Small delay after wake-up
+    delay(100);
+
+    // Re-render the display
+    _data.hal->buzz.tone(2000, 50);
+}
+
 void Settings::_handle_input()
 {
     if (_data.inTimezoneEdit) {
         _handle_timezone_edit();
     } else if (_data.inClearConfirm) {
         _handle_clear_confirm();
+    } else if (_data.inSleepConfirm) {
+        _handle_sleep_confirm();
     } else {
         _handle_main_menu();
     }
@@ -207,6 +302,8 @@ void Settings::_render()
         _gui.renderTimezoneEdit(_data.timezoneOffset);
     } else if (_data.inClearConfirm) {
         _gui.renderClearConfirm(_data.clearConfirmSelected, _data.clearing, _data.cleared);
+    } else if (_data.inSleepConfirm) {
+        _gui.renderSleepConfirm(_data.sleepConfirmSelected);
     } else {
         _gui.renderMainMenu(_data.selectedOption);
     }
