@@ -305,4 +305,115 @@ struct YardSummaryStats {
     }
 };
 
+// Equipment types for planning
+enum class EquipmentType : uint8_t {
+    BROOD_BOXES = 0,
+    SUPERS = 1,
+    BOTTOM_BOARDS = 2,
+    INNER_LIDS = 3,
+    OUTER_LIDS = 4,
+    QUEEN_EXCLUDERS = 5,
+    HIVE_STANDS = 6,
+    INSULATION = 7,
+    ENTRANCE_REDUCERS = 8,
+    FEEDERS = 9,
+    EQUIPMENT_COUNT = 10
+};
+
+// Equipment names for display
+inline const char* getEquipmentName(EquipmentType type) {
+    switch (type) {
+        case EquipmentType::BROOD_BOXES: return "Brood Boxes";
+        case EquipmentType::SUPERS: return "Supers";
+        case EquipmentType::BOTTOM_BOARDS: return "Bottom Boards";
+        case EquipmentType::INNER_LIDS: return "Inner Lids";
+        case EquipmentType::OUTER_LIDS: return "Outer Lids";
+        case EquipmentType::QUEEN_EXCLUDERS: return "Queen Excluders";
+        case EquipmentType::HIVE_STANDS: return "Hive Stands";
+        case EquipmentType::INSULATION: return "Insulation";
+        case EquipmentType::ENTRANCE_REDUCERS: return "Ent. Reducers";
+        case EquipmentType::FEEDERS: return "Feeders";
+        default: return "Unknown";
+    }
+}
+
+// Equipment plan record
+struct EquipmentPlan {
+    uint32_t yardNumber;            // Reference to yard
+    uint32_t timestamp;             // Unix timestamp when plan was created/updated
+    uint8_t quantities[static_cast<int>(EquipmentType::EQUIPMENT_COUNT)];  // Quantity for each equipment type
+
+    // Default constructor
+    EquipmentPlan() {
+        reset();
+    }
+
+    // Reset to defaults
+    void reset() {
+        yardNumber = 0;
+        timestamp = 0;
+        for (int i = 0; i < static_cast<int>(EquipmentType::EQUIPMENT_COUNT); i++) {
+            quantities[i] = 0;
+        }
+    }
+
+    // Get quantity for equipment type
+    uint8_t getQuantity(EquipmentType type) const {
+        int idx = static_cast<int>(type);
+        if (idx >= 0 && idx < static_cast<int>(EquipmentType::EQUIPMENT_COUNT)) {
+            return quantities[idx];
+        }
+        return 0;
+    }
+
+    // Set quantity for equipment type
+    void setQuantity(EquipmentType type, uint8_t qty) {
+        int idx = static_cast<int>(type);
+        if (idx >= 0 && idx < static_cast<int>(EquipmentType::EQUIPMENT_COUNT)) {
+            quantities[idx] = qty;
+        }
+    }
+};
+
+// NVS packed equipment plan structure
+struct __attribute__((packed)) EquipmentPlanNVS {
+    uint32_t yardNumber;            // 4 bytes
+    uint32_t timestamp;             // 4 bytes
+    uint8_t quantities[static_cast<int>(EquipmentType::EQUIPMENT_COUNT)];  // 10 bytes
+    uint16_t crc16;                 // 2 bytes
+
+    // Convert from runtime record
+    void fromRecord(const EquipmentPlan& rec) {
+        yardNumber = rec.yardNumber;
+        timestamp = rec.timestamp;
+        for (int i = 0; i < static_cast<int>(EquipmentType::EQUIPMENT_COUNT); i++) {
+            quantities[i] = rec.quantities[i];
+        }
+        updateCRC();
+    }
+
+    // Convert to runtime record
+    void toRecord(EquipmentPlan& rec) const {
+        rec.yardNumber = yardNumber;
+        rec.timestamp = timestamp;
+        for (int i = 0; i < static_cast<int>(EquipmentType::EQUIPMENT_COUNT); i++) {
+            rec.quantities[i] = quantities[i];
+        }
+    }
+
+    // Calculate and set CRC
+    void updateCRC() {
+        crc16 = YardRecordNVS::calculateCRC16(reinterpret_cast<const uint8_t*>(this),
+                                              sizeof(EquipmentPlanNVS) - sizeof(crc16));
+    }
+
+    // Validate CRC
+    bool validateCRC() const {
+        uint16_t calculated = YardRecordNVS::calculateCRC16(
+            reinterpret_cast<const uint8_t*>(this),
+            sizeof(EquipmentPlanNVS) - sizeof(crc16));
+        return calculated == crc16;
+    }
+};
+
 } // namespace YARD_MANAGEMENT

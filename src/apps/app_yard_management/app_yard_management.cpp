@@ -14,10 +14,12 @@
 #include "screens/screen_create_yard.h"
 #include "screens/screen_close_yard.h"
 #include "screens/screen_yard_summary.h"
+#include "screens/screen_yard_actions.h"
 #include "screens/screen_hive_mgmt.h"
 #include "screens/screen_add_hive.h"
 #include "screens/screen_close_hive.h"
 #include "screens/screen_select_hive.h"
+#include "screens/screen_equipment_plan.h"
 #include "screens/screen_clear_data.h"
 
 using namespace MOONCAKE::USER_APP;
@@ -96,6 +98,9 @@ ScreenBaseYM* YardManagement::createScreen(ScreenType type) {
         case ScreenType::YARD_SUMMARY:
             return new ScreenYardSummary(_data.hal, canvas, &_context);
 
+        case ScreenType::YARD_ACTIONS:
+            return new ScreenYardActions(_data.hal, canvas, &_context);
+
         case ScreenType::HIVE_MGMT:
             return new ScreenHiveMgmt(_data.hal, canvas, &_context);
 
@@ -107,6 +112,9 @@ ScreenBaseYM* YardManagement::createScreen(ScreenType type) {
 
         case ScreenType::SELECT_HIVE:
             return new ScreenSelectHive(_data.hal, canvas, &_context);
+
+        case ScreenType::EQUIPMENT_PLAN:
+            return new ScreenEquipmentPlan(_data.hal, canvas, &_context);
 
         case ScreenType::CLEAR_DATA:
             return new ScreenClearData(_data.hal, canvas, &_context);

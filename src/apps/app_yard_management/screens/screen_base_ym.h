@@ -19,16 +19,18 @@ enum class ScreenType {
     CREATE_YARD,
     CLOSE_YARD,
     YARD_SUMMARY,
+    YARD_ACTIONS,
     HIVE_MGMT,
     ADD_HIVE,
     CLOSE_HIVE,
     SELECT_HIVE,
+    EQUIPMENT_PLAN,
     CLEAR_DATA,
     NONE  // For back to launcher
 };
 
 // Screen indices
-constexpr int SCREEN_COUNT = 10;
+constexpr int SCREEN_COUNT = 12;
 
 // Circular display constraints (same as beehive inspection)
 constexpr int DISPLAY_WIDTH = 240;

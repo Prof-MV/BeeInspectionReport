@@ -90,6 +90,17 @@ YardSummaryStats calculateYardStats(uint32_t yardNumber);
 // Update active hive count for a yard
 bool updateYardHiveCount(uint32_t yardNumber);
 
+// ==================== Equipment Plan Operations ====================
+
+// Save an equipment plan to NVS
+bool saveEquipmentPlan(const EquipmentPlan& plan);
+
+// Load an equipment plan from NVS
+bool loadEquipmentPlan(uint32_t yardNumber, EquipmentPlan& plan);
+
+// Delete an equipment plan from NVS
+bool deleteEquipmentPlan(uint32_t yardNumber);
+
 // ==================== Maintenance ====================
 
 // Clear all yard and hive data (factory reset)

@@ -99,7 +99,7 @@ void ScreenYardSummary::render() {
     _canvas->setFont(&fonts::FreeSans9pt7b);
     _canvas->setTextColor(COLOR_TEXT_SECONDARY);
     _canvas->setTextDatum(textdatum_t::bottom_center);
-    _canvas->drawString("Click: Hive Mgmt", DISPLAY_CENTER_X, CONTENT_BOTTOM);
+    _canvas->drawString("Click: Actions", DISPLAY_CENTER_X, CONTENT_BOTTOM);
 
     pushToDisplay();
 }
@@ -111,7 +111,7 @@ void ScreenYardSummary::onRotate(int direction) {
 
 NavigationResult ScreenYardSummary::onConfirm() {
     NavigationResult result;
-    result.nextScreen = ScreenType::HIVE_MGMT;
+    result.nextScreen = ScreenType::YARD_ACTIONS;
     buzzConfirm();
     return result;
 }

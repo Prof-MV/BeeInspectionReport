@@ -640,6 +640,106 @@ bool updateYardHiveCount(uint32_t yardNumber) {
     return saveYard(yard);
 }
 
+// ==================== Equipment Plan Operations ====================
+
+static void makeEquipmentPlanKey(uint32_t yardNumber, char* key, size_t keySize) {
+    snprintf(key, keySize, "eqp_%06lu", (unsigned long)yardNumber);
+}
+
+bool saveEquipmentPlan(const EquipmentPlan& plan) {
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(YM_NVS_NAMESPACE, NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to open NVS: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    // Pack the record
+    EquipmentPlanNVS packed;
+    packed.fromRecord(plan);
+
+    // Create key
+    char key[20];
+    makeEquipmentPlanKey(plan.yardNumber, key, sizeof(key));
+
+    // Write to NVS
+    err = nvs_set_blob(handle, key, &packed, sizeof(EquipmentPlanNVS));
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to write equipment plan for yard %lu: %s",
+                 (unsigned long)plan.yardNumber, esp_err_to_name(err));
+        nvs_close(handle);
+        return false;
+    }
+
+    err = nvs_commit(handle);
+    nvs_close(handle);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to commit equipment plan for yard %lu: %s",
+                 (unsigned long)plan.yardNumber, esp_err_to_name(err));
+        return false;
+    }
+
+    ESP_LOGI(TAG, "Saved equipment plan for yard %lu", (unsigned long)plan.yardNumber);
+    return true;
+}
+
+bool loadEquipmentPlan(uint32_t yardNumber, EquipmentPlan& plan) {
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(YM_NVS_NAMESPACE, NVS_READONLY, &handle);
+    if (err != ESP_OK) {
+        return false;
+    }
+
+    char key[20];
+    makeEquipmentPlanKey(yardNumber, key, sizeof(key));
+
+    EquipmentPlanNVS packed;
+    size_t size = sizeof(EquipmentPlanNVS);
+    err = nvs_get_blob(handle, key, &packed, &size);
+    nvs_close(handle);
+
+    if (err != ESP_OK) {
+        if (err != ESP_ERR_NVS_NOT_FOUND) {
+            ESP_LOGE(TAG, "Failed to read equipment plan for yard %lu: %s",
+                     (unsigned long)yardNumber, esp_err_to_name(err));
+        }
+        return false;
+    }
+
+    // Validate CRC
+    if (!packed.validateCRC()) {
+        ESP_LOGE(TAG, "CRC validation failed for equipment plan yard %lu",
+                 (unsigned long)yardNumber);
+        return false;
+    }
+
+    packed.toRecord(plan);
+    return true;
+}
+
+bool deleteEquipmentPlan(uint32_t yardNumber) {
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(YM_NVS_NAMESPACE, NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        return false;
+    }
+
+    char key[20];
+    makeEquipmentPlanKey(yardNumber, key, sizeof(key));
+
+    err = nvs_erase_key(handle, key);
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+        nvs_close(handle);
+        return false;
+    }
+
+    nvs_commit(handle);
+    nvs_close(handle);
+    ESP_LOGI(TAG, "Deleted equipment plan for yard %lu", (unsigned long)yardNumber);
+    return true;
+}
+
 // ==================== Maintenance ====================
 
 bool clearAllYardManagementData() {
