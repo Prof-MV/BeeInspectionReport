@@ -40,6 +40,7 @@ typedef enum {
     CMD_GET_HIVES_IN_YARD   = 0x09,   // Get hives in yard (followed by 4-byte yard number)
     CMD_GET_HIVE            = 0x0A,   // Get specific hive by number (followed by 4-byte number)
     CMD_GET_ALL_DATA        = 0x0B,   // Stream all data (yards, hives, inspections)
+    CMD_SET_TIME            = 0x20,   // Set RTC time (followed by 4-byte Unix timestamp)
     CMD_PING                = 0xFF,   // Simple ping to test connection
 } BleCommand_t;
 
@@ -64,6 +65,8 @@ typedef struct {
     uint8_t transfer_in_progress;
     uint32_t bytes_sent;
     uint32_t total_bytes;
+    uint32_t pending_time;        // Unix timestamp to set (0 = none pending)
+    uint8_t time_update_pending;  // Flag: 1 = time update requested
 } BleDataServiceInfo_t;
 
 // Initialize the BLE data service
@@ -83,6 +86,10 @@ bool ble_data_service_is_transferring(void);
 
 // Get transfer progress (0-100)
 uint8_t ble_data_service_get_progress(void);
+
+// Check if a time update is pending, returns Unix timestamp (0 if none)
+// Calling this clears the pending flag
+uint32_t ble_data_service_get_pending_time(void);
 
 #ifdef __cplusplus
 }

@@ -10,6 +10,7 @@
 #include "../app_yard_management/yard_storage.h"
 #include <esp_timer.h>
 #include <cstring>
+#include <ctime>
 
 // Include all screen headers
 #include "screens/screen_select_yard_hive.h"
@@ -290,7 +291,33 @@ void BeehiveInspection::saveAndExit() {
 
     // Set record metadata
     _record.recordId = getNextRecordID();
-    _record.timestamp = (uint32_t)(esp_timer_get_time() / 1000000);  // Unix timestamp in seconds
+
+    // Get actual RTC time and convert to Unix timestamp
+    tm rtc_time;
+    if (_data.hal->rtc.getTime(rtc_time) == ESP_OK) {
+        // Convert tm to Unix timestamp
+        // RTC returns tm_year as full year (e.g., 2026), need to adjust for mktime
+        struct tm time_for_mktime;
+        time_for_mktime.tm_sec = rtc_time.tm_sec;
+        time_for_mktime.tm_min = rtc_time.tm_min;
+        time_for_mktime.tm_hour = rtc_time.tm_hour;
+        time_for_mktime.tm_mday = rtc_time.tm_mday;
+        time_for_mktime.tm_mon = rtc_time.tm_mon;
+        time_for_mktime.tm_year = rtc_time.tm_year - 1900;  // mktime expects years since 1900
+        time_for_mktime.tm_isdst = 0;
+
+        time_t unix_time = mktime(&time_for_mktime);
+        _record.timestamp = (uint32_t)unix_time;
+        _log("Inspection timestamp: %lu (RTC: %04d-%02d-%02d %02d:%02d:%02d)",
+             (unsigned long)_record.timestamp,
+             rtc_time.tm_year, rtc_time.tm_mon + 1, rtc_time.tm_mday,
+             rtc_time.tm_hour, rtc_time.tm_min, rtc_time.tm_sec);
+    } else {
+        // Fallback to uptime if RTC fails
+        _record.timestamp = (uint32_t)(esp_timer_get_time() / 1000000);
+        _log("Warning: RTC read failed, using uptime as timestamp");
+    }
+
     _record.isComplete = (_data.currentScreenIndex == SCREEN_COUNT - 1);
 
     // Log the inspection data

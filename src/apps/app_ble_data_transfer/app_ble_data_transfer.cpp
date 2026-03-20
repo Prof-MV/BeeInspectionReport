@@ -10,9 +10,11 @@
 #include "../app_beehive_inspection/inspection_data.h"
 #include "../app_yard_management/yard_storage.h"
 #include "../app_yard_management/yard_data.h"
+#include "../app_settings/settings_storage.h"
 #include "ble_data_service.h"
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 
 using namespace MOONCAKE::USER_APP;
 
@@ -239,13 +241,36 @@ void BleDataTransfer::_process_data_requests()
             for (uint32_t id : inspectionIds) {
                 BEEHIVE_INSPECTION::InspectionRecord insp;
                 if (BEEHIVE_INSPECTION::loadInspectionFromNVS(id, insp)) {
-                    char jsonBuf[256];
+                    // Convert timestamp to human-readable format
+                    static const char* months[] = {
+                        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+                    };
+                    char datetime_str[64] = "N/A";
+                    if (insp.timestamp > 0) {
+                        // Adjust for timezone from settings
+                        int8_t tzOffset = SETTINGS::getTimezoneOffset();
+                        time_t rawtime = (time_t)insp.timestamp + (tzOffset * 3600);
+                        struct tm* timeinfo = gmtime(&rawtime);
+                        if (timeinfo != nullptr) {
+                            snprintf(datetime_str, sizeof(datetime_str),
+                                     "%02d %s %02d %02d:%02d",
+                                     timeinfo->tm_mday,
+                                     months[timeinfo->tm_mon],
+                                     (timeinfo->tm_year + 1900) % 100,
+                                     timeinfo->tm_hour,
+                                     timeinfo->tm_min);
+                        }
+                    }
+
+                    char jsonBuf[300];
                     int jsonLen = snprintf(jsonBuf, sizeof(jsonBuf),
-                        "{\"type\":\"inspection\",\"id\":%lu,\"hive\":%lu,\"ts\":%lu,"
+                        "{\"type\":\"inspection\",\"id\":%lu,\"hive\":%lu,\"ts\":%lu,\"datetime\":\"%s\","
                         "\"qr\":%d,\"sc\":%d,\"ssc\":%d,\"supers\":%d,\"temp\":%d,\"brood\":%d,\"treat\":%d,\"pests\":%d}",
                         (unsigned long)insp.recordId,
                         (unsigned long)insp.hiveId,
                         (unsigned long)insp.timestamp,
+                        datetime_str,
                         insp.queenRight ? 1 : 0,
                         (int)insp.swarmCells,
                         (int)insp.supersedureCells,
@@ -317,6 +342,48 @@ void BleDataTransfer::onRunning()
 {
     // Process any pending data requests
     _process_data_requests();
+
+    // Check for pending RTC time update
+    uint32_t pending_time = ble_data_service_get_pending_time();
+    if (pending_time > 0) {
+        printf("[BLE_App] =========================================\n");
+        printf("[BLE_App] RTC TIME UPDATE RECEIVED\n");
+        printf("[BLE_App] Unix timestamp: %lu\n", (unsigned long)pending_time);
+
+        // Convert Unix timestamp to tm struct
+        time_t rawtime = (time_t)pending_time;
+        struct tm* timeinfo = gmtime(&rawtime);
+
+        if (timeinfo != nullptr) {
+            // Create a copy for the RTC (it expects tm_year as full year, not years since 1900)
+            tm rtc_time;
+            rtc_time.tm_sec = timeinfo->tm_sec;
+            rtc_time.tm_min = timeinfo->tm_min;
+            rtc_time.tm_hour = timeinfo->tm_hour;
+            rtc_time.tm_mday = timeinfo->tm_mday;
+            rtc_time.tm_wday = timeinfo->tm_wday;
+            rtc_time.tm_mon = timeinfo->tm_mon;
+            rtc_time.tm_year = timeinfo->tm_year + 1900;  // RTC expects full year
+            rtc_time.tm_isdst = 0;
+
+            printf("[BLE_App] Setting RTC to: %04d-%02d-%02d %02d:%02d:%02d\n",
+                   rtc_time.tm_year, rtc_time.tm_mon + 1, rtc_time.tm_mday,
+                   rtc_time.tm_hour, rtc_time.tm_min, rtc_time.tm_sec);
+
+            // Set the RTC
+            esp_err_t result = _data.hal->rtc.setTime(rtc_time);
+            if (result == ESP_OK) {
+                printf("[BLE_App] RTC updated successfully!\n");
+                _data.hal->buzz.tone(2000, 100);  // Success beep
+            } else {
+                printf("[BLE_App] ERROR: Failed to set RTC, err=%d\n", result);
+                _data.hal->buzz.tone(500, 200);  // Error beep
+            }
+        } else {
+            printf("[BLE_App] ERROR: Failed to convert timestamp\n");
+        }
+        printf("[BLE_App] =========================================\n");
+    }
 
     // Update GUI periodically
     if ((millis() - _data.gui_update_time_count) > _data.gui_update_interval)

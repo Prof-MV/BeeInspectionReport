@@ -12,8 +12,8 @@ namespace YARD_MANAGEMENT {
 class ScreenMgmtMenu : public ScreenBaseYM {
 private:
     int _selectedIndex;
-    static constexpr int OPTION_COUNT = 3;
-    static constexpr const char* OPTIONS[OPTION_COUNT] = {"Create Yard", "Close Yard", "Clear Data"};
+    static constexpr int OPTION_COUNT = 2;
+    static constexpr const char* OPTIONS[OPTION_COUNT] = {"Create Yard", "Close Yard"};
 
 public:
     ScreenMgmtMenu(HAL::HAL* hal, LGFX_Sprite* canvas, AppContext* context);

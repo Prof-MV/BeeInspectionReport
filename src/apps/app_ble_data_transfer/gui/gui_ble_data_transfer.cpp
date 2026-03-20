@@ -51,46 +51,45 @@ void GUI_BLE_DataTransfer::renderPage(
     _canvas->setTextColor(TFT_DARKGRAY);
     _canvas->drawCenterString(deviceName, bubble.x, bubble.y - 38);
 
-    // Status indicator
+    // Status indicator (centered)
     int statusY = bubble.y - 15;
     _canvas->setTextColor(TFT_BLACK);
-    _canvas->drawString("[Status]:", 25, statusY);
 
     switch (status) {
         case Status_Advertising:
             _canvas->setTextColor(TFT_ORANGE);
-            _canvas->drawString("Advertising...", 100, statusY);
+            _canvas->drawCenterString("Advertising...", bubble.x, statusY);
             break;
 
         case Status_Connected:
             _canvas->setTextColor(TFT_DARKGREEN);
-            _canvas->drawString("Connected!", 100, statusY);
+            _canvas->drawCenterString("Connected!", bubble.x, statusY);
             break;
 
         case Status_Transferring:
             _canvas->setTextColor(TFT_BLUE);
             char progStr[32];
             snprintf(progStr, sizeof(progStr), "Sending %d%%", transferProgress);
-            _canvas->drawString(progStr, 100, statusY);
+            _canvas->drawCenterString(progStr, bubble.x, statusY);
             break;
     }
 
-    // Data counts
+    // Data counts (centered)
     int dataY = bubble.y + 8;
     _canvas->setTextColor(TFT_BLACK);
     char countStr[48];
 
     snprintf(countStr, sizeof(countStr), "Inspections: %d", inspectionCount);
-    _canvas->drawString(countStr, 30, dataY);
+    _canvas->drawCenterString(countStr, bubble.x, dataY);
 
     snprintf(countStr, sizeof(countStr), "Yards: %d  Hives: %d", yardCount, hiveCount);
-    _canvas->drawString(countStr, 30, dataY + 20);
+    _canvas->drawCenterString(countStr, bubble.x, dataY + 20);
 
-    // Transfer progress bar (if transferring)
+    // Transfer progress bar (if transferring) - centered
     if (status == Status_Transferring && transferProgress > 0) {
-        int barX = 30;
-        int barY = dataY + 45;
         int barWidth = 180;
+        int barX = bubble.x - barWidth / 2;
+        int barY = dataY + 45;
         int barHeight = 12;
 
         // Background

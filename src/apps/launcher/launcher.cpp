@@ -25,6 +25,7 @@ void Launcher::_menu_init()
     _data.menu = new SMOOTH_MENU::Simple_Menu;
     _data.menu_render_cb = new LauncherRender_CB_t;
     _data.menu_render_cb->setCanvas(_data.hal->canvas);
+    _data.menu_render_cb->setHAL(_data.hal);
 
     _data.menu->init(240, 240);
     _data.menu->setRenderCallback(_data.menu_render_cb);
@@ -49,10 +50,15 @@ void Launcher::_menu_init()
     int n = ICON_NUM;  // Number of icons
     int x;
     int y;
+    // Angles for 4 icons: left side (140°, 180°, 220°) + right side (0° = 3 o'clock)
+    double angles[] = {7.0 * 3.14159 / 9.0,    // 140° (upper-left)
+                       3.14159,                 // 180° (9 o'clock)
+                       11.0 * 3.14159 / 9.0,    // 220° (lower-left)
+                       0.0};                    // 0° (3 o'clock) - Settings
     for (int i = 0; i < n; i++)
     {
-        x = a + r * std::cos(2 * 3.14 * i / n);
-        y = b + r * std::sin(2 * 3.14 * i / n);
+        x = a + r * std::cos(angles[i]);
+        y = b + r * std::sin(angles[i]);
         _data.menu->getMenu()->addItem("", x, y, ICON_RADIUS, ICON_RADIUS);
     }
 }
@@ -80,13 +86,19 @@ void Launcher::_icon_list_init()
     int r = 190 / 2 ;
     int n = ICON_NUM; // Number of icons
 
+    // Angles for 4 icons: left side (140°, 180°, 220°) + right side (0° = 3 o'clock)
+    double angles[] = {7.0 * 3.14159 / 9.0,    // 140° (upper-left)
+                       3.14159,                 // 180° (9 o'clock)
+                       11.0 * 3.14159 / 9.0,    // 220° (lower-left)
+                       0.0};                    // 0° (3 o'clock) - Settings
+
     /* Set icon position */
     int x;
     int y;
     for (int i = 0; i < icon_list.size(); i++)
     {
-        x = a + r * std::cos(2 * 3.14 * i / n);
-        y = b + r * std::sin(2 * 3.14 * i / n);
+        x = a + r * std::cos(angles[i]);
+        y = b + r * std::sin(angles[i]);
 
         icon_list[i].x = x;
         icon_list[i].y = y;
@@ -285,6 +297,9 @@ void Launcher::_app_open_callback(uint8_t selectedNum)
             break;
         case 2:
             app_ptr = new MOONCAKE::USER_APP::BleDataTransfer;
+            break;
+        case 3:
+            app_ptr = new MOONCAKE::USER_APP::Settings;
             break;
         default:
             break;

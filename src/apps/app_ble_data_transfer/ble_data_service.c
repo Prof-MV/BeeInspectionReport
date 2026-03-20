@@ -238,6 +238,30 @@ static void process_command(const uint8_t* data, uint16_t len)
             _service_info.bytes_sent = 0;
             break;
 
+        case CMD_SET_TIME:
+            if (len >= 5) {
+                uint32_t unix_time = data[1] | (data[2] << 8) | (data[3] << 16) | (data[4] << 24);
+                printf("[BLE] SET_TIME received: Unix timestamp = %lu\n", (unsigned long)unix_time);
+
+                // Store for C++ layer to process
+                _service_info.pending_time = unix_time;
+                _service_info.time_update_pending = 1;
+
+                // Send acknowledgment
+                _response_buf[0] = RESP_OK;
+                _response_buf[1] = CMD_SET_TIME;
+                memcpy(&_response_buf[2], &unix_time, 4);
+                _response_len = 6;
+
+                printf("[BLE] Time update queued for RTC\n");
+            } else {
+                printf("[BLE] ERROR: SET_TIME missing timestamp (need 4 bytes)\n");
+                _response_buf[0] = RESP_ERROR;
+                _response_buf[1] = CMD_SET_TIME;
+                _response_len = 2;
+            }
+            break;
+
         default:
             printf("[BLE] ERROR: Unknown command 0x%02X\n", cmd);
             _response_buf[0] = RESP_ERROR;
@@ -590,4 +614,17 @@ void ble_data_service_transfer_complete(void)
     _service_info.transfer_in_progress = 0;
     printf("[BLE] Transfer complete. Total bytes sent: %lu\n",
            (unsigned long)_service_info.bytes_sent);
+}
+
+// Get pending time update (clears the flag)
+uint32_t ble_data_service_get_pending_time(void)
+{
+    if (_service_info.time_update_pending) {
+        _service_info.time_update_pending = 0;
+        uint32_t time = _service_info.pending_time;
+        _service_info.pending_time = 0;
+        printf("[BLE] Pending time retrieved: %lu\n", (unsigned long)time);
+        return time;
+    }
+    return 0;
 }

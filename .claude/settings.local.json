@@ -16,7 +16,8 @@
       "Bash(\"%USERPROFILE%\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run)",
       "Bash(cmd.exe /c \"cd /d c:\\\\Users\\\\mvolk\\\\Documents\\\\PlatformIO\\\\Projects\\\\M5Dial-BeeInspectionReport && C:\\\\Users\\\\mvolk\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe run\":*)",
       "Bash(~/.platformio/penv/Scripts/pio run:*)",
-      "Bash(~/.platformio/penv/Scripts/platformio.exe run:*)"
+      "Bash(~/.platformio/penv/Scripts/platformio.exe run:*)",
+      "Bash(\"$HOME/.platformio/penv/Scripts/pio.exe\" run:*)"
     ]
   }
 }

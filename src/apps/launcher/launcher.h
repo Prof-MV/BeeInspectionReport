@@ -18,6 +18,7 @@
 #include "../app_beehive_inspection/app_beehive_inspection.h"
 #include "../app_yard_management/app_yard_management.h"
 #include "../app_ble_data_transfer/app_ble_data_transfer.h"
+#include "../app_settings/app_settings.h"
 
 
 

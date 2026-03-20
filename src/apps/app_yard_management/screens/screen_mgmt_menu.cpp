@@ -57,9 +57,6 @@ NavigationResult ScreenMgmtMenu::onConfirm() {
         case 1:  // Close Yard
             result.nextScreen = ScreenType::CLOSE_YARD;
             break;
-        case 2:  // Clear Data
-            result.nextScreen = ScreenType::CLEAR_DATA;
-            break;
     }
 
     buzzConfirm();
