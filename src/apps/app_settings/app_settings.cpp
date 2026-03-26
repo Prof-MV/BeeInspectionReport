@@ -15,6 +15,7 @@
 #include "driver/gpio.h"
 #include "driver/rtc_io.h"
 
+
 using namespace MOONCAKE::USER_APP;
 
 void Settings::_load_settings()
@@ -94,6 +95,9 @@ void Settings::_handle_main_menu()
             case SETTINGS_APP::MenuOption::SLEEP:
                 _data.inSleepConfirm = true;
                 _data.sleepConfirmSelected = false;  // Default to No
+                break;
+            case SETTINGS_APP::MenuOption::BEEP:
+                _data.inBeepTest = true;
                 break;
             case SETTINGS_APP::MenuOption::DONE:
                 destroyApp();
@@ -283,6 +287,28 @@ void Settings::_enter_sleep()
     _data.hal->buzz.tone(2000, 50);
 }
 
+void Settings::_handle_beep_test()
+{
+    // Play beep when button is pressed
+    if (!_data.hal->encoder.btn.read()) {
+        // Wait for release
+        while (!_data.hal->encoder.btn.read()) {
+            delay(5);
+        }
+
+        // Play a test beep sequence
+        _data.hal->buzz.tone(1000, 100);
+        delay(1000);
+        _data.hal->buzz.tone(2000, 100);
+        delay(1000);
+        _data.hal->buzz.tone(3000, 100);
+
+        // Go back to main menu
+        _data.inBeepTest = false;
+        _render();
+    }
+}
+
 void Settings::_handle_input()
 {
     if (_data.inTimezoneEdit) {
@@ -291,6 +317,8 @@ void Settings::_handle_input()
         _handle_clear_confirm();
     } else if (_data.inSleepConfirm) {
         _handle_sleep_confirm();
+    } else if (_data.inBeepTest) {
+        _handle_beep_test();
     } else {
         _handle_main_menu();
     }
@@ -304,6 +332,8 @@ void Settings::_render()
         _gui.renderClearConfirm(_data.clearConfirmSelected, _data.clearing, _data.cleared);
     } else if (_data.inSleepConfirm) {
         _gui.renderSleepConfirm(_data.sleepConfirmSelected);
+    } else if (_data.inBeepTest) {
+        _gui.renderBeepTest();
     } else {
         _gui.renderMainMenu(_data.selectedOption);
     }

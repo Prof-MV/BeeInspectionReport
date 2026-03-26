@@ -23,4 +23,7 @@ class GUI_Settings : public GUI_Base
 
         // Sleep confirmation screen
         void renderSleepConfirm(bool yesSelected);
+
+        // Beep test screen
+        void renderBeepTest();
 };

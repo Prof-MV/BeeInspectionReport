@@ -20,6 +20,7 @@ namespace MOONCAKE
                 TIMEZONE = 0,
                 CLEAR_DATA,
                 SLEEP,
+                BEEP,
                 DONE,
                 COUNT
             };
@@ -46,6 +47,9 @@ namespace MOONCAKE
 
                 // Sleep confirmation
                 bool sleepConfirmSelected = false;  // false = No, true = Yes
+
+                // Beep test
+                bool inBeepTest = false;
             };
 
             // Timezone range
@@ -65,6 +69,7 @@ namespace MOONCAKE
                 void _handle_timezone_edit();
                 void _handle_clear_confirm();
                 void _handle_sleep_confirm();
+                void _handle_beep_test();
                 void _render();
 
                 // Storage

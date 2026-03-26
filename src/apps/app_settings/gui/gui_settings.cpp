@@ -44,8 +44,8 @@ void GUI_Settings::renderMainMenu(int selectedOption)
     // Menu options
     _canvas->setFont(GUI_FONT_CN_SMALL);
 
-    const char* options[] = {"Timezone", "Clear Data", "Sleep", "Done"};
-    int optionCount = 4;
+    const char* options[] = {"Timezone", "Clear Data", "Sleep", "Beep", "Done"};
+    int optionCount = 5;
     int startY = bubble.y - 30;
     int spacing = 22;
 
@@ -247,6 +247,45 @@ void GUI_Settings::renderSleepConfirm(bool yesSelected)
     _canvas->drawRoundRect(yesX, buttonY, buttonWidth, buttonHeight, 5, yesColor);
     _canvas->setTextColor(yesColor);
     _canvas->drawCenterString("Yes", yesX + buttonWidth/2, buttonY + 6);
+
+    // Icon
+    _draw_top_icon();
+
+    // Quit button
+    _draw_quit_button();
+
+    _canvas->drawCircle(120, 120, 120, TFT_DARKGRAY);
+    _canvas->pushSprite(0, 0);
+}
+
+void GUI_Settings::renderBeepTest()
+{
+    _canvas->fillScreen(TFT_DARKGRAY);
+    _canvas->fillSmoothCircle(120, 120, 120, _theme_color);
+
+    // Main info bubble
+    BasicObeject_t bubble;
+    bubble.x = 120;
+    bubble.y = 125;
+    bubble.width = 220;
+    bubble.height = 150;
+    _canvas->fillSmoothRoundRect(bubble.x - bubble.width / 2, bubble.y - bubble.height / 2,
+                                  bubble.width, bubble.height, 30, TFT_WHITE);
+
+    // Title
+    _canvas->setFont(GUI_FONT_CN_BIG);
+    _canvas->setTextColor(_theme_color);
+    _canvas->drawCenterString("BEEP TEST", bubble.x, bubble.y - 60);
+
+    // Message
+    _canvas->setFont(GUI_FONT_CN_SMALL);
+    _canvas->setTextColor(TFT_BLACK);
+    _canvas->drawCenterString("Press button to", bubble.x, bubble.y - 15);
+    _canvas->drawCenterString("play test beep", bubble.x, bubble.y + 5);
+
+    // Help text
+    _canvas->setTextColor(TFT_DARKGRAY);
+    _canvas->drawCenterString("click to test & exit", bubble.x, bubble.y + 55);
 
     // Icon
     _draw_top_icon();

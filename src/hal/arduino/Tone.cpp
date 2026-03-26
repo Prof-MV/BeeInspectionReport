@@ -1,147 +1,187 @@
 #include "Arduino.h"
-#include "esp32-hal-ledc.h"
+#include "driver/ledc.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
-#include "freertos/semphr.h"
+#include "esp_log.h"
 
 #define delay(ms) vTaskDelay(pdMS_TO_TICKS(ms))
 
-// Fixed frequency to avoid LEDC timer clock conflicts
-// All buzz.tone() calls in the codebase use 2000Hz
-#define TONE_FIXED_FREQUENCY 2000
+static const char* TAG = "Tone";
+
+// Use LEDC timer 3 and channel 6 to avoid conflicts with display (backlight uses channel 7)
+#define BUZZER_LEDC_TIMER      LEDC_TIMER_3
+#define BUZZER_LEDC_CHANNEL    LEDC_CHANNEL_6
+#define BUZZER_LEDC_MODE       LEDC_LOW_SPEED_MODE
+#define BUZZER_LEDC_DUTY_RES   LEDC_TIMER_10_BIT
+#define BUZZER_DUTY_50_PERCENT 512
 
 static TaskHandle_t _tone_task = NULL;
 static QueueHandle_t _tone_queue = NULL;
 static int8_t _pin = -1;
 static bool _initialized = false;
 
-typedef enum{
-  TONE_START,
-  TONE_END
+typedef enum {
+    TONE_START,
+    TONE_END
 } tone_cmd_t;
 
-typedef struct{
-  tone_cmd_t tone_cmd;
-  uint8_t pin;
-  unsigned int frequency;
-  unsigned long duration;
+typedef struct {
+    tone_cmd_t tone_cmd;
+    uint8_t pin;
+    unsigned int frequency;
+    unsigned long duration;
 } tone_msg_t;
 
-static void tone_task(void*){
-  tone_msg_t tone_msg;
-  while(1){
-    xQueueReceive(_tone_queue, &tone_msg, portMAX_DELAY);
-    switch(tone_msg.tone_cmd){
-      case TONE_START:
-        log_d("Task received from queue TONE_START: pin=%d, frequency=%u Hz, duration=%lu ms", tone_msg.pin, tone_msg.frequency, tone_msg.duration);
+static bool buzzer_init(uint8_t pin, uint32_t frequency) {
+    // Configure timer
+    ledc_timer_config_t timer_conf = {
+        .speed_mode = BUZZER_LEDC_MODE,
+        .duty_resolution = BUZZER_LEDC_DUTY_RES,
+        .timer_num = BUZZER_LEDC_TIMER,
+        .freq_hz = frequency,
+        .clk_cfg = LEDC_AUTO_CLK,
+        .deconfigure = false
+    };
 
-        // Initialize LEDC once and keep it attached to avoid timer conflicts
-        if (!_initialized || _pin != tone_msg.pin) {
-          if (_pin != -1) {
-            ledcDetach(_pin);
-          }
-          // Always use fixed frequency to avoid clock source conflicts
-          if (ledcAttach(tone_msg.pin, TONE_FIXED_FREQUENCY, 10) == 0) {
-              log_e("Tone start failed");
-              break;
-          }
-          _pin = tone_msg.pin;
-          _initialized = true;
-        }
+    esp_err_t err = ledc_timer_config(&timer_conf);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Timer config failed: %s", esp_err_to_name(err));
+        return false;
+    }
 
-        // Turn on tone (50% duty cycle)
-        ledcWrite(tone_msg.pin, 512);
+    // Configure channel
+    ledc_channel_config_t channel_conf = {
+        .gpio_num = pin,
+        .speed_mode = BUZZER_LEDC_MODE,
+        .channel = BUZZER_LEDC_CHANNEL,
+        .intr_type = LEDC_INTR_DISABLE,
+        .timer_sel = BUZZER_LEDC_TIMER,
+        .duty = 0,
+        .hpoint = 0,
+        .sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD,
+        .flags = {.output_invert = 0}
+    };
 
-        if(tone_msg.duration){
-          delay(tone_msg.duration);
-          ledcWrite(tone_msg.pin, 0);  // Turn off after duration
-        }
-        break;
+    err = ledc_channel_config(&channel_conf);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Channel config failed: %s", esp_err_to_name(err));
+        return false;
+    }
 
-      case TONE_END:
-        log_d("Task received from queue TONE_END: pin=%d", tone_msg.pin);
-        // Just turn off duty cycle, don't detach - keeps timer configuration stable
-        ledcWrite(tone_msg.pin, 0);
-        break;
-
-      default: ; // do nothing
-    } // switch
-  } // infinite loop
+    return true;
 }
 
-static int tone_init(){
-  if(_tone_queue == NULL){
-    log_v("Creating tone queue");
-    _tone_queue = xQueueCreate(128, sizeof(tone_msg_t));
-    if(_tone_queue == NULL){
-      log_e("Could not create tone queue");
-      return 0; // ERR
+static bool buzzer_set_frequency(uint32_t frequency) {
+    esp_err_t err = ledc_set_freq(BUZZER_LEDC_MODE, BUZZER_LEDC_TIMER, frequency);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Set freq failed: %s", esp_err_to_name(err));
+        return false;
     }
-    log_v("Tone queue created");
-  }
+    return true;
+}
 
-  if(_tone_task == NULL){
-    log_v("Creating tone task");
-    xTaskCreate(
-      tone_task, // Function to implement the task
-      "toneTask", // Name of the task
-      3500,  // Stack size in words
-      NULL,  // Task input parameter
-      1,  // Priority of the task
-      &_tone_task  // Task handle.
-      );
-    if(_tone_task == NULL){
-      log_e("Could not create tone task");
-      return 0; // ERR
+static void buzzer_on() {
+    ledc_set_duty(BUZZER_LEDC_MODE, BUZZER_LEDC_CHANNEL, BUZZER_DUTY_50_PERCENT);
+    ledc_update_duty(BUZZER_LEDC_MODE, BUZZER_LEDC_CHANNEL);
+}
+
+static void buzzer_off() {
+    ledc_set_duty(BUZZER_LEDC_MODE, BUZZER_LEDC_CHANNEL, 0);
+    ledc_update_duty(BUZZER_LEDC_MODE, BUZZER_LEDC_CHANNEL);
+}
+
+static void tone_task(void*) {
+    tone_msg_t tone_msg;
+    while (1) {
+        xQueueReceive(_tone_queue, &tone_msg, portMAX_DELAY);
+        switch (tone_msg.tone_cmd) {
+            case TONE_START:
+                ESP_LOGD(TAG, "TONE_START: pin=%d, freq=%u, dur=%lu",
+                         tone_msg.pin, tone_msg.frequency, tone_msg.duration);
+
+                // Initialize on first use or pin change
+                if (!_initialized || _pin != tone_msg.pin) {
+                    if (!buzzer_init(tone_msg.pin, tone_msg.frequency)) {
+                        break;
+                    }
+                    _pin = tone_msg.pin;
+                    _initialized = true;
+                } else {
+                    // Just update frequency
+                    buzzer_set_frequency(tone_msg.frequency);
+                }
+
+                // Turn on
+                buzzer_on();
+
+                // Wait for duration then turn off
+                if (tone_msg.duration) {
+                    delay(tone_msg.duration);
+                    buzzer_off();
+                }
+                break;
+
+            case TONE_END:
+                ESP_LOGD(TAG, "TONE_END");
+                buzzer_off();
+                break;
+
+            default:
+                break;
+        }
     }
-    log_v("Tone task created");
-  }
-  return 1; // OK
+}
+
+static int tone_init() {
+    if (_tone_queue == NULL) {
+        _tone_queue = xQueueCreate(128, sizeof(tone_msg_t));
+        if (_tone_queue == NULL) {
+            ESP_LOGE(TAG, "Could not create tone queue");
+            return 0;
+        }
+    }
+
+    if (_tone_task == NULL) {
+        xTaskCreate(tone_task, "toneTask", 3500, NULL, 1, &_tone_task);
+        if (_tone_task == NULL) {
+            ESP_LOGE(TAG, "Could not create tone task");
+            return 0;
+        }
+    }
+    return 1;
 }
 
 namespace ARDUINO {
 
-void noTone(uint8_t pin){
-  log_d("noTone was called");
-  if(_pin == pin) {
-    if(tone_init()){
-      tone_msg_t tone_msg = {
-        .tone_cmd = TONE_END,
-        .pin = pin,
-        .frequency = 0, // Ignored
-        .duration = 0, // Ignored
-      };
-      xQueueSend(_tone_queue, &tone_msg, portMAX_DELAY);
+void noTone(uint8_t pin) {
+    if (_pin == pin) {
+        if (tone_init()) {
+            tone_msg_t tone_msg = {
+                .tone_cmd = TONE_END,
+                .pin = pin,
+                .frequency = 0,
+                .duration = 0,
+            };
+            xQueueSend(_tone_queue, &tone_msg, portMAX_DELAY);
+        }
     }
-  }
-  else {
-    log_e("Tone is not running on given pin %d", pin);
-  }
 }
 
-// parameters:
-// pin - pin number which will output the signal
-// frequency - PWM frequency in Hz
-// duration - time in ms - how long will the signal be outputted.
-//   If not provided, or 0 you must manually call noTone to end output
-void tone(uint8_t pin, unsigned int frequency, unsigned long duration){
-  log_d("pin=%d, frequency=%u Hz, duration=%lu ms", pin, frequency, duration);
-  if(_pin == -1 || _pin == pin) {
-    if(tone_init()){
-      tone_msg_t tone_msg = {
-        .tone_cmd = TONE_START,
-        .pin = pin,
-        .frequency = frequency,
-        .duration = duration,
-      };
-      xQueueSend(_tone_queue, &tone_msg, portMAX_DELAY);
-      return;
+void tone(uint8_t pin, unsigned int frequency, unsigned long duration) {
+    ESP_LOGD(TAG, "tone: pin=%d, freq=%u, dur=%lu", pin, frequency, duration);
+    if (_pin == -1 || _pin == pin) {
+        if (tone_init()) {
+            tone_msg_t tone_msg = {
+                .tone_cmd = TONE_START,
+                .pin = pin,
+                .frequency = frequency,
+                .duration = duration,
+            };
+            xQueueSend(_tone_queue, &tone_msg, portMAX_DELAY);
+        }
+    } else {
+        ESP_LOGE(TAG, "Tone still running on pin %d", _pin);
     }
-  }
-  else {
-    log_e("Tone is still running on pin %d, call noTone(%d) first!", _pin, _pin);
-    return;
-  }
 }
 
 }
