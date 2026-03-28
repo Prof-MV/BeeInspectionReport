@@ -1,15 +1,17 @@
 /**
  * @file hal_tp.hpp
  * @author Forairaaaaa
- * @brief 
- * @version 0.1
+ * @brief
+ * @version 0.2
  * @date 2023-05-20
- * 
+ *
  * @copyright Copyright (c) 2023
- * 
+ *
+ * Updated: 2026-03 - Use new I2C driver API for ESP-IDF 5.4+
  */
 #pragma once
-#include <driver/i2c.h>
+#include <driver/i2c_master.h>
+#include <driver/gpio.h>
 #include <esp_log.h>
 #include <cstring>
 
@@ -72,6 +74,10 @@
 #define FT5x06_ID_G_FT5201ID           (0xA8)
 #define FT5x06_ID_G_ERR                (0xA9)
 
+// I2C pins for M5Dial touchscreen
+#define TP_I2C_SDA_PIN  11
+#define TP_I2C_SCL_PIN  12
+
 
 namespace FT3267
 {
@@ -100,8 +106,10 @@ namespace FT3267
 
     struct Config_t
     {
-        i2c_port_t i2c_port = I2C_NUM_0;
+        int pin_sda = TP_I2C_SDA_PIN;
+        int pin_scl = TP_I2C_SCL_PIN;
         uint8_t dev_addr = FT5x06_ADDR;
+        uint32_t i2c_freq = 100000;
     };
 
 
@@ -111,58 +119,54 @@ namespace FT3267
             Config_t _cfg;
             uint8_t _data_buffer[7];
             TouchPoint_t _touch_point_buffer;
+            i2c_master_bus_handle_t _i2c_bus_handle = nullptr;
+            i2c_master_dev_handle_t _i2c_dev_handle = nullptr;
+            bool _initialized = false;
 
 
-            inline esp_err_t _writr_reg(uint8_t reg, uint8_t data)
+            inline esp_err_t _write_reg(uint8_t reg, uint8_t data)
             {
-                _data_buffer[0] = reg;
-                _data_buffer[1] = data; 
-                return i2c_master_write_to_device(_cfg.i2c_port, _cfg.dev_addr, _data_buffer, 2, pdMS_TO_TICKS(200));
+                if (!_initialized) return ESP_ERR_INVALID_STATE;
+                uint8_t write_buf[2] = {reg, data};
+                return i2c_master_transmit(_i2c_dev_handle, write_buf, 2, pdMS_TO_TICKS(200));
             }
 
 
             inline esp_err_t _read_reg(uint8_t reg, uint8_t readSize)
             {
-                /* Store data into buffer */
-                return i2c_master_write_read_device(_cfg.i2c_port, _cfg.dev_addr, &reg, 1, _data_buffer, readSize, pdMS_TO_TICKS(200));
+                if (!_initialized) return ESP_ERR_INVALID_STATE;
+                return i2c_master_transmit_receive(_i2c_dev_handle, &reg, 1, _data_buffer, readSize, pdMS_TO_TICKS(200));
             }
 
 
             inline void _tp_init()
             {
                 // Valid touching detect threshold
-                _writr_reg(FT5x06_ID_G_THGROUP, 70);
+                _write_reg(FT5x06_ID_G_THGROUP, 70);
 
                 // valid touching peak detect threshold
-                _writr_reg(FT5x06_ID_G_THPEAK, 60);
+                _write_reg(FT5x06_ID_G_THPEAK, 60);
 
                 // Touch focus threshold
-                _writr_reg(FT5x06_ID_G_THCAL, 16);
+                _write_reg(FT5x06_ID_G_THCAL, 16);
 
                 // threshold when there is surface water
-                _writr_reg(FT5x06_ID_G_THWATER, 60);
+                _write_reg(FT5x06_ID_G_THWATER, 60);
 
                 // threshold of temperature compensation
-                _writr_reg(FT5x06_ID_G_THTEMP, 10);
+                _write_reg(FT5x06_ID_G_THTEMP, 10);
 
                 // Touch difference threshold
-                _writr_reg(FT5x06_ID_G_THDIFF, 20);
+                _write_reg(FT5x06_ID_G_THDIFF, 20);
 
                 // Delay to enter 'Monitor' status (s)
-                _writr_reg(FT5x06_ID_G_TIME_ENTER_MONITOR, 2);
+                _write_reg(FT5x06_ID_G_TIME_ENTER_MONITOR, 2);
 
                 // Period of 'Active' status (ms)
-                _writr_reg(FT5x06_ID_G_PERIODACTIVE, 12);
+                _write_reg(FT5x06_ID_G_PERIODACTIVE, 12);
 
                 // Timer to enter 'idle' when in 'Monitor' (ms)
-                _writr_reg(FT5x06_ID_G_PERIODMONITOR, 40);
-
-                // _read_reg(0x90, 1);
-                // printf("0x%X\n", _data_buffer[0]);
-                // _read_reg(FT5x06_ID_G_FIRMID, 1);
-                // printf("0x%X\n", _data_buffer[0]);
-                // _read_reg(FT5x06_ID_G_FT5201ID, 1);
-                // printf("0x%X\n", _data_buffer[0]);
+                _write_reg(FT5x06_ID_G_PERIODMONITOR, 40);
             }
 
 
@@ -171,9 +175,18 @@ namespace FT3267
             {
                 memset(_data_buffer, 0, sizeof(_data_buffer));
             }
-            ~TP_FT3267() = default;
 
-            
+            ~TP_FT3267()
+            {
+                if (_i2c_dev_handle) {
+                    i2c_master_bus_rm_device(_i2c_dev_handle);
+                }
+                if (_i2c_bus_handle) {
+                    i2c_del_master_bus(_i2c_bus_handle);
+                }
+            }
+
+
             /* Config */
             inline Config_t getConfig() { return _cfg; }
             inline void setConfig(const Config_t& cfg) { _cfg = cfg; }
@@ -181,13 +194,43 @@ namespace FT3267
 
             inline bool init()
             {
-                ESP_LOGI(TAG, "init tp ft3267");
-                
+                ESP_LOGI(TAG, "init tp ft3267 with new I2C driver");
+
                 /* Interrupt pin */
                 gpio_reset_pin(GPIO_NUM_14);
                 gpio_set_direction(GPIO_NUM_14, GPIO_MODE_INPUT);
                 gpio_set_pull_mode(GPIO_NUM_14, GPIO_PULLUP_ONLY);
 
+                /* Initialize I2C bus with new driver */
+                i2c_master_bus_config_t bus_config = {};
+                bus_config.clk_source = I2C_CLK_SRC_DEFAULT;
+                bus_config.i2c_port = I2C_NUM_0;
+                bus_config.scl_io_num = (gpio_num_t)_cfg.pin_scl;
+                bus_config.sda_io_num = (gpio_num_t)_cfg.pin_sda;
+                bus_config.glitch_ignore_cnt = 7;
+                bus_config.flags.enable_internal_pullup = true;
+
+                esp_err_t ret = i2c_new_master_bus(&bus_config, &_i2c_bus_handle);
+                if (ret != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to create I2C master bus: %s", esp_err_to_name(ret));
+                    return false;
+                }
+
+                /* Add touchscreen device */
+                i2c_device_config_t dev_config = {};
+                dev_config.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+                dev_config.device_address = _cfg.dev_addr;
+                dev_config.scl_speed_hz = _cfg.i2c_freq;
+
+                ret = i2c_master_bus_add_device(_i2c_bus_handle, &dev_config, &_i2c_dev_handle);
+                if (ret != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to add I2C device: %s", esp_err_to_name(ret));
+                    i2c_del_master_bus(_i2c_bus_handle);
+                    _i2c_bus_handle = nullptr;
+                    return false;
+                }
+
+                _initialized = true;
                 _tp_init();
 
                 return true;
@@ -233,7 +276,7 @@ namespace FT3267
 
             /**
              * @brief Update internal touch point buffer
-             * 
+             *
              */
             inline void update()
             {
@@ -243,13 +286,18 @@ namespace FT3267
 
             /**
              * @brief Get internal touch point buffer
-             * 
-             * @return TouchPoint_t 
+             *
+             * @return TouchPoint_t
              */
             inline TouchPoint_t getTouchPointBuffer()
             {
                 return _touch_point_buffer;
             }
+
+            /**
+             * @brief Get the I2C bus handle (for sharing with other devices like RTC)
+             */
+            inline i2c_master_bus_handle_t getBusHandle() { return _i2c_bus_handle; }
     };
 
 

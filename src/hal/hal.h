@@ -10,6 +10,7 @@
  */
 #pragma once
 #define LVGL_ENABLE 0
+#define RFID_ENABLE 0  // Disabled: RC522 uses legacy I2C driver incompatible with ESP-IDF 5.4+
 
 #include "hal_common_define.h"
 #include "display/hal_display.hpp"
@@ -21,7 +22,9 @@
 #endif
 #include "tp/hal_tp.hpp"
 #include "rtc/hal_rtc.hpp"
+#if RFID_ENABLE
 #include "rfid/hal_rfid.h"
+#endif
 
 namespace HAL
 {
@@ -60,7 +63,9 @@ namespace HAL
         PCF8563::PCF8563 rtc;
 
         /* RFID Reader */
+#if RFID_ENABLE
         RFID::RfidReader rfid;
+#endif
 
         /**
          * @brief Init
@@ -75,9 +80,8 @@ namespace HAL
         static void _encoder_button_pressed_callback(Button* button, void* userData);
     };
 
-    bool i2c_init(i2c_port_t i2cPort, int sda, int scl, uint32_t clkSpeed, bool pullUpEnable);
+    // Legacy I2C functions removed - using new I2C driver
     void encoder_test(HAL& hal);
-    void i2c_scan(i2c_port_t i2c_master_port);
     void tp_test(HAL& hal);
     void rtc_test(HAL& hal);
 } // namespace HAL

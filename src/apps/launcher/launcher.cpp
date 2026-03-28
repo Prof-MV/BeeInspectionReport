@@ -395,6 +395,7 @@ Launcher::~Launcher()
 
 void Launcher::_check_rfid()
 {
+#if RFID_ENABLE
     // Check if RFID reader detected a tag
     if (!_data.hal->rfid.isReady() || !_data.hal->rfid.wasTagDetected()) {
         return;
@@ -429,6 +430,7 @@ void Launcher::_check_rfid()
     _data.hal->buzz.tone(2000, 50);
     vTaskDelay(pdMS_TO_TICKS(50));
     _data.hal->buzz.tone(2000, 50);
+#endif  // RFID_ENABLE
 }
 
 
@@ -502,7 +504,9 @@ void Launcher::_show_yard_info(uint32_t yardNumber)
     }
 
     // Clear RFID detection to avoid re-triggering
+#if RFID_ENABLE
     _data.hal->rfid.clearLastTag();
+#endif
 }
 
 
@@ -515,7 +519,9 @@ void Launcher::_launch_hive_inspection(uint32_t hiveNumber)
     YARD_MANAGEMENT::storeSelectedHiveForInspection(hiveNumber);
 
     // Clear RFID detection
+#if RFID_ENABLE
     _data.hal->rfid.clearLastTag();
+#endif
 
     // Play app open anim (using beehive icon - index 0)
     uint32_t theme_color = icon_list[0].color;

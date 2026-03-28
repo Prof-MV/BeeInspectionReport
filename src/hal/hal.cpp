@@ -27,7 +27,15 @@ namespace HAL
 
         /* Init tp right after lcd (sharing rst pin) */
         tp.init();
-        i2c_scan(I2C_NUM_0);
+
+        /* Init RTC using shared I2C bus from touchpad */
+        if (tp.getBusHandle() != nullptr) {
+            if (!rtc.init(tp.getBusHandle())) {
+                ESP_LOGW(TAG, "RTC init failed");
+            }
+        } else {
+            ESP_LOGW(TAG, "Cannot init RTC - no I2C bus handle");
+        }
 
         // display.setColorDepth(16);
         // display.setTextSize(3);
@@ -123,7 +131,7 @@ namespace HAL
 
         /* Init i2c port 0 (for Tp) */
         // i2c_init(I2C_NUM_0, 11, 12, 100000, true);
-        i2c_init(I2C_NUM_0, HAL_PIN_TP_I2C_SDA, HAL_PIN_TP_I2C_SCL, 100000, true);
+        // i2c_init(I2C_NUM_0, HAL_PIN_TP_I2C_SDA, HAL_PIN_TP_I2C_SCL, 100000, true);  // DISABLED: Legacy I2C conflicts with driver_ng
 
         /* Display init */
         _display_init();
@@ -138,10 +146,12 @@ namespace HAL
         lvgl.init(&display, &encoder, &tp);
 #endif
 
+#if RFID_ENABLE
         /* Init RFID reader (uses I2C_NUM_0, same bus as touchscreen) */
         if (!rfid.init(I2C_NUM_0)) {
             ESP_LOGW(TAG, "RFID reader not detected - may not be connected");
         }
+#endif
 
         // _encoder_init();
     }
@@ -170,49 +180,7 @@ namespace HAL
         gpio_set_level(pin_pwr_holding, 0);
     }
 
-    bool i2c_init(i2c_port_t i2cPort, int sda, int scl, uint32_t clkSpeed, bool pullUpEnable)
-    {
-        ESP_LOGD(TAG, "init i2c");
-
-        esp_err_t ret;
-
-        /* I2C config */
-        i2c_config_t conf;
-        memset(&conf, 0, sizeof(i2c_config_t));
-        conf.mode = I2C_MODE_MASTER;
-        conf.sda_io_num = sda;
-        conf.scl_io_num = scl;
-        conf.master.clk_speed = clkSpeed;
-        if (pullUpEnable)
-        {
-            conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
-            conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
-        }
-        else
-        {
-            conf.sda_pullup_en = GPIO_PULLUP_DISABLE;
-            conf.scl_pullup_en = GPIO_PULLUP_DISABLE;
-        }
-        conf.clk_flags = I2C_SCLK_SRC_FLAG_FOR_NOMAL;
-        ret = i2c_param_config(i2cPort, &conf);
-        if (ret != ESP_OK)
-        {
-            ESP_LOGE(TAG, "I2C config failed");
-            return false;
-        }
-        ESP_LOGI(TAG, "I2C config ok");
-
-        /* Install driver */
-        ret = i2c_driver_install(i2cPort, I2C_MODE_MASTER, 0, 0, 0);
-        if (ret != ESP_OK)
-        {
-            ESP_LOGE(TAG, "I2C driver install failed");
-            return false;
-        }
-        ESP_LOGI(TAG, "I2C driver install ok");
-
-        return true;
-    }
+    // Legacy i2c_init removed - using new I2C driver in hal_tp.hpp
 
     void encoder_test(HAL& hal)
     {
@@ -294,46 +262,7 @@ namespace HAL
         // }
     }
 
-    void i2c_scan(i2c_port_t i2c_master_port)
-    {
-
-        uint8_t WRITE_BIT = I2C_MASTER_WRITE; /*!< I2C master write */
-        // uint8_t READ_BIT = I2C_MASTER_READ;    /*!< I2C master read */
-        uint8_t ACK_CHECK_EN = 0x1; /*!< I2C master will check ack from slave*/
-        // uint8_t ACK_CHECK_DIS = 0x0;           /*!< I2C master will not check ack from slave */
-
-        uint8_t address;
-        printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\r\n");
-        for (int i = 0; i < 128; i += 16)
-        {
-            printf("%02x: ", i);
-            for (int j = 0; j < 16; j++)
-            {
-                fflush(stdout);
-                address = i + j;
-                i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-                i2c_master_start(cmd);
-                i2c_master_write_byte(cmd, (address << 1) | WRITE_BIT, ACK_CHECK_EN);
-                i2c_master_stop(cmd);
-                esp_err_t ret = i2c_master_cmd_begin(i2c_master_port, cmd, pdMS_TO_TICKS(50));
-                i2c_cmd_link_delete(cmd);
-                if (ret == ESP_OK)
-                {
-                    printf("%02x ", address);
-                }
-                else if (ret == ESP_ERR_TIMEOUT)
-                {
-                    printf("UU ");
-                }
-                else
-                {
-                    printf("-- ");
-                }
-            }
-            printf("\r\n");
-        }
-        // i2c_driver_delete(i2c_master_port);
-    }
+    // Legacy i2c_scan removed - using new I2C driver
 
     void rtc_test(HAL& hal)
     {

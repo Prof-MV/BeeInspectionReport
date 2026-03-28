@@ -4,6 +4,9 @@
  * @version 1.1
  * @date 2026-02-12
  */
+#include "../hal.h"  // For RFID_ENABLE define
+
+#if RFID_ENABLE
 #include "hal_rfid.h"
 #include <esp_log.h>
 #include <cstring>
@@ -218,3 +221,5 @@ void RfidReader::clearLastTag() {
 
 } // namespace RFID
 } // namespace HAL
+
+#endif // RFID_ENABLE

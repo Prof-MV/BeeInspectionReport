@@ -6,6 +6,7 @@
  */
 #pragma once
 
+// RFID_ENABLE is defined in hal.h - this header should only be included when RFID_ENABLE=1
 #include <stdint.h>
 #include <stdbool.h>
 #include <driver/i2c.h>

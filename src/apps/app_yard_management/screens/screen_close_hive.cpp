@@ -172,13 +172,16 @@ void ScreenCloseHive::startRfidScan() {
     }
 
     // Clear any previous tag detection and start scanning
+#if RFID_ENABLE
     if (_hal->rfid.isReady()) {
         _hal->rfid.clearLastTag();
         _hal->rfid.startScanning();
     }
+#endif
 }
 
 void ScreenCloseHive::simulateRfidScan() {
+#if RFID_ENABLE
     // Check if a tag was detected (non-blocking)
     if (!_hal->rfid.isReady()) {
         _scanSuccess = false;
@@ -208,6 +211,13 @@ void ScreenCloseHive::simulateRfidScan() {
         }
     }
     // If no tag detected yet, keep scanning
+#else
+    // RFID disabled
+    _scanSuccess = false;
+    _scanError = true;
+    strcpy(_errorMessage, "RFID disabled");
+    _scanning = false;
+#endif
 }
 
 bool ScreenCloseHive::verifyRfidTag() {

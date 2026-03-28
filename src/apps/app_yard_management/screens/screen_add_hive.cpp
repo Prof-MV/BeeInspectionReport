@@ -186,13 +186,16 @@ void ScreenAddHive::startRfidScan() {
     memset(_errorMessage, 0, sizeof(_errorMessage));
 
     // Clear any previous tag detection and start scanning
+#if RFID_ENABLE
     if (_hal->rfid.isReady()) {
         _hal->rfid.clearLastTag();
         _hal->rfid.startScanning();
     }
+#endif
 }
 
 void ScreenAddHive::simulateRfidScan() {
+#if RFID_ENABLE
     // Check if a tag was detected (non-blocking)
     if (!_hal->rfid.isReady()) {
         _scanSuccess = false;
@@ -222,6 +225,13 @@ void ScreenAddHive::simulateRfidScan() {
         }
     }
     // If no tag detected yet, keep scanning
+#else
+    // RFID disabled
+    _scanSuccess = false;
+    _scanError = true;
+    strcpy(_errorMessage, "RFID disabled");
+    _scanning = false;
+#endif
 }
 
 bool ScreenAddHive::createHive() {
