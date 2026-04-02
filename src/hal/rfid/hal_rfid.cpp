@@ -57,19 +57,20 @@ RfidReader::~RfidReader() {
     deinit();
 }
 
-bool RfidReader::init(i2c_port_t i2cPort) {
+bool RfidReader::init(i2c_master_bus_handle_t busHandle) {
     if (_initialized) {
         ESP_LOGW(TAG, "RFID reader already initialized");
         return true;
     }
 
-    ESP_LOGI(TAG, "Initializing RFID reader on I2C port %d", i2cPort);
+    ESP_LOGI(TAG, "Initializing RFID reader on I2C bus handle");
 
     // Setup config
     rc522_config_t config;
     memset(&config, 0, sizeof(rc522_config_t));
     config.transport = RC522_TRANSPORT_I2C;
-    config.i2c.port = i2cPort;
+    config.i2c.bus_handle = busHandle;
+    config.i2c.rw_timeout_ms = RC522_DEFAULT_I2C_RW_TIMEOUT_MS;
 
     // Create handler
     esp_err_t err = rc522_create(&config, &_rc522Handle);

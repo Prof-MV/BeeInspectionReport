@@ -255,13 +255,16 @@ NavigationResult ScreenCreateYard::onConfirm() {
             break;
 
         case CreateYardStep::NICKNAME:
-            // Add character and move cursor
-            if (_cursorPos < MAX_NICKNAME_LENGTH) {
+            if (_selectedChar == '\b') {
+                if (_cursorPos > 0) {
+                    _cursorPos--;
+                    _nickname[_cursorPos] = '\0';
+                    _selectedChar = 'A';
+                    buzzNavigate();
+                }
+            } else if (_cursorPos < MAX_NICKNAME_LENGTH) {
                 _nickname[_cursorPos] = _selectedChar;
                 _cursorPos++;
-
-                // Check if nickname is complete (user can click multiple times)
-                // Long press will trigger onBack which we handle as "done with nickname"
                 buzzNavigate();
             }
             render();
@@ -348,23 +351,10 @@ NavigationResult ScreenCreateYard::onUpdate() {
         // Check for tag detection
         simulateRfidScan();
 
-        // If scan completed (success or error), re-render
+        // If scan completed (success or error), re-render to show result
         if (_scanSuccess || _scanError) {
             render();
-
-            // If success, auto-advance to save the yard
-            if (_scanSuccess) {
-                if (createYard()) {
-                    buzzSuccess();
-                    result.nextScreen = ScreenType::YARD_LIST;
-                } else {
-                    _scanError = true;
-                    strcpy(_errorMessage, "Save failed");
-                    _scanSuccess = false;
-                    buzzError();
-                    render();
-                }
-            }
+            // User confirms save via onConfirm()
         }
     }
 

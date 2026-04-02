@@ -26,11 +26,12 @@ enum class ScreenType {
     SELECT_HIVE,
     EQUIPMENT_PLAN,
     CLEAR_DATA,
+    EDIT_YARD,
     NONE  // For back to launcher
 };
 
 // Screen indices
-constexpr int SCREEN_COUNT = 12;
+constexpr int SCREEN_COUNT = 13;
 
 // Circular display constraints (same as beehive inspection)
 constexpr int DISPLAY_WIDTH = 240;

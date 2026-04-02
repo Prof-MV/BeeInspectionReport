@@ -21,6 +21,7 @@
 #include "screens/screen_select_hive.h"
 #include "screens/screen_equipment_plan.h"
 #include "screens/screen_clear_data.h"
+#include "screens/screen_edit_yard.h"
 
 using namespace MOONCAKE::USER_APP;
 using namespace YARD_MANAGEMENT;
@@ -118,6 +119,9 @@ ScreenBaseYM* YardManagement::createScreen(ScreenType type) {
 
         case ScreenType::CLEAR_DATA:
             return new ScreenClearData(_data.hal, canvas, &_context);
+
+        case ScreenType::EDIT_YARD:
+            return new ScreenEditYard(_data.hal, canvas, &_context);
 
         default:
             return nullptr;

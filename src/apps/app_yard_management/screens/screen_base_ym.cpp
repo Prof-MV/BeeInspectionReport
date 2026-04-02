@@ -421,9 +421,13 @@ void ScreenBaseYM::drawNicknameInput(const char* current, int cursorPos, char se
     _canvas->setTextColor(COLOR_TEXT_SECONDARY);
     _canvas->setTextDatum(textdatum_t::top_center);
 
-    char hint[32];
-    snprintf(hint, sizeof(hint), "< %c >", selectedChar);
-    _canvas->drawString(hint, DISPLAY_CENTER_X, y + boxHeight + 10);
+    if (selectedChar == '\b') {
+        _canvas->drawString("< DEL >", DISPLAY_CENTER_X, y + boxHeight + 10);
+    } else {
+        char hint[32];
+        snprintf(hint, sizeof(hint), "< %c >", selectedChar);
+        _canvas->drawString(hint, DISPLAY_CENTER_X, y + boxHeight + 10);
+    }
 
     // Draw instructions
     _canvas->setFont(&fonts::FreeSans9pt7b);
@@ -433,8 +437,8 @@ void ScreenBaseYM::drawNicknameInput(const char* current, int cursorPos, char se
 }
 
 char ScreenBaseYM::getNextChar(char current, int direction) {
-    // Character set: A-Z, a-z, 0-9, space, dash, underscore
-    static const char charSet[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
+    // Character set: space, A-Z, 0-9, dash, underscore, backspace sentinel
+    static const char charSet[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_\b";
     static const int charSetLen = sizeof(charSet) - 1;
 
     // Find current position

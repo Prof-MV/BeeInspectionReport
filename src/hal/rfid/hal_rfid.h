@@ -9,7 +9,7 @@
 // RFID_ENABLE is defined in hal.h - this header should only be included when RFID_ENABLE=1
 #include <stdint.h>
 #include <stdbool.h>
-#include <driver/i2c.h>
+#include <driver/i2c_master.h>
 #include <rc522.h>
 
 namespace HAL {
@@ -44,10 +44,10 @@ public:
 
     /**
      * @brief Initialize the RFID reader using rc522 library
-     * @param i2cPort I2C port to use (should be already initialized)
+     * @param busHandle Pre-initialized I2C master bus handle
      * @return true if initialization successful
      */
-    bool init(i2c_port_t i2cPort = I2C_NUM_0);
+    bool init(i2c_master_bus_handle_t busHandle);
 
     /**
      * @brief Deinitialize and free resources

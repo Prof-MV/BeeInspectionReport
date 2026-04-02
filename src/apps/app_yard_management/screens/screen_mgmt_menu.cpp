@@ -57,6 +57,9 @@ NavigationResult ScreenMgmtMenu::onConfirm() {
         case 1:  // Close Yard
             result.nextScreen = ScreenType::CLOSE_YARD;
             break;
+        case 2:  // Edit Yard
+            result.nextScreen = ScreenType::EDIT_YARD;
+            break;
     }
 
     buzzConfirm();

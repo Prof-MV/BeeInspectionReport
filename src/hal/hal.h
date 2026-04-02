@@ -10,7 +10,7 @@
  */
 #pragma once
 #define LVGL_ENABLE 0
-#define RFID_ENABLE 0  // Disabled: RC522 uses legacy I2C driver incompatible with ESP-IDF 5.4+
+#define RFID_ENABLE 1
 
 #include "hal_common_define.h"
 #include "display/hal_display.hpp"

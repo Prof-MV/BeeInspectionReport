@@ -147,9 +147,13 @@ namespace HAL
 #endif
 
 #if RFID_ENABLE
-        /* Init RFID reader (uses I2C_NUM_0, same bus as touchscreen) */
-        if (!rfid.init(I2C_NUM_0)) {
-            ESP_LOGW(TAG, "RFID reader not detected - may not be connected");
+        /* Init RFID reader (shared I2C bus from touchpad) */
+        if (tp.getBusHandle() != nullptr) {
+            if (!rfid.init(tp.getBusHandle())) {
+                ESP_LOGW(TAG, "RFID reader not detected - may not be connected");
+            }
+        } else {
+            ESP_LOGW(TAG, "Cannot init RFID - no I2C bus handle");
         }
 #endif
 
