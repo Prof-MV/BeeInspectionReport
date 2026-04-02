@@ -19,7 +19,7 @@ class GUI_Settings : public GUI_Base
         void renderTimezoneEdit(int8_t offset);
 
         // Clear data confirmation screen
-        void renderClearConfirm(bool yesSelected, bool clearing, bool cleared);
+        void renderClearConfirm(bool yesSelected, bool clearing, bool cleared, bool failed = false);
 
         // Sleep confirmation screen
         void renderSleepConfirm(bool yesSelected);

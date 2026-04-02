@@ -127,7 +127,7 @@ void GUI_Settings::renderTimezoneEdit(int8_t offset)
     _canvas->pushSprite(0, 0);
 }
 
-void GUI_Settings::renderClearConfirm(bool yesSelected, bool clearing, bool cleared)
+void GUI_Settings::renderClearConfirm(bool yesSelected, bool clearing, bool cleared, bool failed)
 {
     _canvas->fillScreen(TFT_DARKGRAY);
     _canvas->fillSmoothCircle(120, 120, 120, _theme_color);
@@ -151,6 +151,15 @@ void GUI_Settings::renderClearConfirm(bool yesSelected, bool clearing, bool clea
         _canvas->setFont(&fonts::FreeSans12pt7b);
         _canvas->setTextColor(TFT_DARKGREEN);
         _canvas->drawCenterString("Data Cleared!", bubble.x, bubble.y - 10);
+
+        _canvas->setFont(GUI_FONT_CN_SMALL);
+        _canvas->setTextColor(TFT_DARKGRAY);
+        _canvas->drawCenterString("click to continue", bubble.x, bubble.y + 30);
+    } else if (failed) {
+        // Error message
+        _canvas->setFont(&fonts::FreeSans12pt7b);
+        _canvas->setTextColor(TFT_RED);
+        _canvas->drawCenterString("Clear Failed!", bubble.x, bubble.y - 10);
 
         _canvas->setFont(GUI_FONT_CN_SMALL);
         _canvas->setTextColor(TFT_DARKGRAY);

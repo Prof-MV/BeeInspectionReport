@@ -245,17 +245,27 @@ bool clearAllInspections() {
     nvs_handle_t handle;
     esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &handle);
     if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to open NVS for clear: %s", esp_err_to_name(err));
         return false;
     }
 
     err = nvs_erase_all(handle);
-    if (err == ESP_OK) {
-        nvs_commit(handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to erase inspection data: %s", esp_err_to_name(err));
+        nvs_close(handle);
+        return false;
     }
 
+    err = nvs_commit(handle);
     nvs_close(handle);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to commit inspection data erase: %s", esp_err_to_name(err));
+        return false;
+    }
+
     ESP_LOGI(TAG, "All inspection records cleared");
-    return err == ESP_OK;
+    return true;
 }
 
 std::size_t getInspectionCount() {

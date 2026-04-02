@@ -8,6 +8,7 @@
 #include <esp_timer.h>
 #include <cstdio>
 #include <cstring>
+#include <algorithm>
 
 namespace YARD_MANAGEMENT {
 
@@ -68,7 +69,15 @@ void ScreenAddHive::onEnter() {
     _scanSuccess = false;
     _scanError = false;
     _numberValid = true;
-    _context->newHiveNumber = 1;  // Start from 1 for counter-style input
+    // Start from the next available hive number
+    {
+        std::vector<uint32_t> existing = getAllHiveNumbers();
+        uint32_t next = 1;
+        if (!existing.empty()) {
+            next = *std::max_element(existing.begin(), existing.end()) + 1;
+        }
+        _context->newHiveNumber = next;
+    }
     _context->originType = HiveOriginType::SWARM;
     _context->originHiveNumber = 0;
     memset(_scannedTag, 0, sizeof(_scannedTag));

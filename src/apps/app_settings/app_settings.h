@@ -44,6 +44,7 @@ namespace MOONCAKE
                 bool clearConfirmSelected = false;  // false = No, true = Yes
                 bool clearing = false;
                 bool cleared = false;
+                bool clearFailed = false;
 
                 // Sleep confirmation
                 bool sleepConfirmSelected = false;  // false = No, true = Yes

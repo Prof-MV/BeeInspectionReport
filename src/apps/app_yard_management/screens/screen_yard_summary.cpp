@@ -57,13 +57,15 @@ void ScreenYardSummary::render() {
         return;
     }
 
-    // Draw header with yard number
+    // Draw header with yard name
     char header[32];
-    snprintf(header, sizeof(header), "YARD %06lu", static_cast<unsigned long>(_context->selectedYardNumber));
+    snprintf(header, sizeof(header), "YARD %s", _yard.nickname);
     drawHeader(header);
 
-    // Draw nickname as subheader
-    drawSubheader(_yard.nickname);
+    // Draw yard number as subheader
+    char subheader[16];
+    snprintf(subheader, sizeof(subheader), "#%06lu", static_cast<unsigned long>(_context->selectedYardNumber));
+    drawSubheader(subheader);
 
     // Draw statistics
     int startY = 80;

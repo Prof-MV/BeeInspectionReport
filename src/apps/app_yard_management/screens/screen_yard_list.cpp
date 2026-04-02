@@ -42,7 +42,7 @@ void ScreenYardList::loadYardList() {
         YardRecord yard;
         if (loadYard(yardNum, yard)) {
             char* str = new char[32];
-            snprintf(str, 32, "%06lu - %s", static_cast<unsigned long>(yardNum), yard.nickname);
+            snprintf(str, 32, "%s", yard.nickname);
             _itemStrings.push_back(str);
             _displayItems.push_back(str);
         }

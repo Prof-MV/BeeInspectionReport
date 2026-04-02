@@ -91,6 +91,7 @@ void Settings::_handle_main_menu()
                 _data.clearConfirmSelected = false;  // Default to No
                 _data.clearing = false;
                 _data.cleared = false;
+                _data.clearFailed = false;
                 break;
             case SETTINGS_APP::MenuOption::SLEEP:
                 _data.inSleepConfirm = true;
@@ -144,7 +145,7 @@ void Settings::_handle_timezone_edit()
 
 void Settings::_handle_clear_confirm()
 {
-    if (_data.cleared) {
+    if (_data.cleared || _data.clearFailed) {
         // Handle button press to go back
         if (!_data.hal->encoder.btn.read()) {
             while (!_data.hal->encoder.btn.read()) {
@@ -154,6 +155,7 @@ void Settings::_handle_clear_confirm()
             _data.hal->buzz.tone(2000, 50);
             _data.inClearConfirm = false;
             _data.cleared = false;
+            _data.clearFailed = false;
             _render();
         }
         return;
@@ -186,9 +188,8 @@ void Settings::_handle_clear_confirm()
                 _data.cleared = true;
                 _data.hal->buzz.tone(2000, 100);
             } else {
-                // Error - go back to menu
+                _data.clearFailed = true;
                 _data.hal->buzz.tone(500, 200);
-                _data.inClearConfirm = false;
             }
 
             _data.clearing = false;
@@ -329,7 +330,7 @@ void Settings::_render()
     if (_data.inTimezoneEdit) {
         _gui.renderTimezoneEdit(_data.timezoneOffset);
     } else if (_data.inClearConfirm) {
-        _gui.renderClearConfirm(_data.clearConfirmSelected, _data.clearing, _data.cleared);
+        _gui.renderClearConfirm(_data.clearConfirmSelected, _data.clearing, _data.cleared, _data.clearFailed);
     } else if (_data.inSleepConfirm) {
         _gui.renderSleepConfirm(_data.sleepConfirmSelected);
     } else if (_data.inBeepTest) {

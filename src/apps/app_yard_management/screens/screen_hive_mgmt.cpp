@@ -5,6 +5,7 @@
  * @date 2026-02-12
  */
 #include "screen_hive_mgmt.h"
+#include "../yard_storage.h"
 #include <cstdio>
 
 namespace YARD_MANAGEMENT {
@@ -29,9 +30,14 @@ void ScreenHiveMgmt::onExit() {
 void ScreenHiveMgmt::render() {
     drawBackground();
 
-    // Header with yard number
+    // Header with yard name
     char header[32];
-    snprintf(header, sizeof(header), "YARD %06lu", static_cast<unsigned long>(_context->selectedYardNumber));
+    YardRecord yard;
+    if (loadYard(_context->selectedYardNumber, yard)) {
+        snprintf(header, sizeof(header), "YARD %s", yard.nickname);
+    } else {
+        snprintf(header, sizeof(header), "YARD %06lu", static_cast<unsigned long>(_context->selectedYardNumber));
+    }
     drawHeader(header);
     drawSubheader("Hive Management");
 

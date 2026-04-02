@@ -595,32 +595,48 @@ YardSummaryStats calculateYardStats(uint32_t yardNumber) {
     uint16_t supersWithFill = 0;
     float totalFill = 0.0f;
 
+    // Load all inspection IDs once, then find the latest completed inspection per hive
+    std::vector<uint32_t> allInspectionIds = BEEHIVE_INSPECTION::getAllInspectionIDs();
+
     for (uint32_t hiveNum : activeHives) {
-        (void)hiveNum;  // Suppress unused warning until inspection integration is complete
-        // Try to get latest inspection for this hive
-        // Note: This requires inspection storage integration
-        BEEHIVE_INSPECTION::InspectionRecord inspection;
+        uint32_t latestTimestamp = 0;
+        BEEHIVE_INSPECTION::InspectionRecord latestInspection;
+        bool found = false;
 
-        // For now, we'll check if inspection data exists
-        // In full implementation, query by hive ID
-        // This is a simplified version - full implementation would
-        // iterate through inspection records to find latest for each hive
+        for (uint32_t inspId : allInspectionIds) {
+            BEEHIVE_INSPECTION::InspectionRecord inspection;
+            if (BEEHIVE_INSPECTION::loadInspectionFromNVS(inspId, inspection)) {
+                if (inspection.hiveId == hiveNum && inspection.isComplete &&
+                        inspection.timestamp >= latestTimestamp) {
+                    latestTimestamp = inspection.timestamp;
+                    latestInspection = inspection;
+                    found = true;
+                }
+            }
+        }
 
-        // Placeholder: Inspection data integration would go here
-        // if (getLatestInspectionForHive(hiveNum, inspection)) {
-        //     stats.hasInspectionData = true;
-        //     if (inspection.queenRight) {
-        //         stats.queenrightHives++;
-        //     }
-        //     stats.totalSupers += inspection.superCount;
-        //     for (int i = 0; i < inspection.superCount; i++) {
-        //         auto fill = inspection.superFill[i];
-        //         if (fill != BEEHIVE_INSPECTION::FillPercentage::UNSET) {
-        //             supersWithFill++;
-        //             totalFill += getFillPercentValue(fill);
-        //         }
-        //     }
-        // }
+        if (found) {
+            stats.hasInspectionData = true;
+            if (latestInspection.queenRight) {
+                stats.queenrightHives++;
+            }
+            stats.totalSupers += latestInspection.superCount;
+            for (int i = 0; i < latestInspection.superCount; i++) {
+                auto fill = latestInspection.superFill[i];
+                if (fill != BEEHIVE_INSPECTION::FillPercentage::UNSET) {
+                    float fillValue = 0.0f;
+                    switch (fill) {
+                        case BEEHIVE_INSPECTION::FillPercentage::PERCENT_25:  fillValue = 25.0f; break;
+                        case BEEHIVE_INSPECTION::FillPercentage::PERCENT_50:  fillValue = 50.0f; break;
+                        case BEEHIVE_INSPECTION::FillPercentage::PERCENT_75:  fillValue = 75.0f; break;
+                        case BEEHIVE_INSPECTION::FillPercentage::PERCENT_100: fillValue = 100.0f; break;
+                        default: break;
+                    }
+                    supersWithFill++;
+                    totalFill += fillValue;
+                }
+            }
+        }
     }
 
     if (supersWithFill > 0) {
@@ -779,17 +795,24 @@ bool clearAllYardManagementData() {
     nvs_handle_t handle;
     esp_err_t err = nvs_open(YM_NVS_NAMESPACE, NVS_READWRITE, &handle);
     if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to open NVS for clear: %s", esp_err_to_name(err));
         return false;
     }
 
     err = nvs_erase_all(handle);
     if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to erase yard data: %s", esp_err_to_name(err));
         nvs_close(handle);
         return false;
     }
 
-    nvs_commit(handle);
+    err = nvs_commit(handle);
     nvs_close(handle);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to commit yard data erase: %s", esp_err_to_name(err));
+        return false;
+    }
 
     ESP_LOGI(TAG, "Cleared all yard management data");
     return true;
